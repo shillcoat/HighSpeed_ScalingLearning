@@ -22,9 +22,7 @@ from filepaths import Zhang2018_path  # This file is not kept in repo
 cases = glob(Zhang2018_path + "/*_Stat.dat")
 header_size = 142
 for c in cases:
-    dbCase = BL('si', incomp=0, chem=0)
-    dbCase.Pr = 0.71
-    dbCase.gamma = 1.4
+    dbCase = BL('si', incomp=0, chem=0, gamma=1.4, Pr=0.71, Bk=0)
     if "M8Tw048" in c:  # Case with nitrogen as working fluid
          dbCase.R = 297
          dbCase.mu_law = lambda T: 1.418e-6*T**(3.0/2.0)/(T+116.4*10**(-5.0/T))
@@ -95,7 +93,7 @@ for c in cases:
 
     # Other
     dbCase.Prt = dat[:,-2]
-    dbCase.Bk = 0
+    dbCase.Cf = 2*dbCase.tauw/(dbCase.rhoinf + dbCase.uinf**2)
 
     with open(c[:-9] + ".dill", 'wb') as f:
         dill.dump(dbCase,f)

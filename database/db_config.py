@@ -143,6 +143,21 @@ class Case:
         else:
             warn("%r is not a valid case parameter" % p)
 
+    def hasdata(self, p=None):
+        # If no parameters p given, returns a list of parameters containing data.
+        # If a list of parameters p is given, returns a corresponding list of booleans
+        # for if they contain data
+        r = []
+        if p is None:
+            for param in Case.gen_params.keys():
+                if getattr(self,param,None) is not None: r.append(param)
+            return r
+        if isinstance(p, str): return getattr(self, p, None) is not None
+        for param in p:
+            r.append(param is not None)
+        return r
+
+
     def vel_transform(self,f,g,label:str=None):
         # Perform velocity transformation with given transformation kernels f and g
         # If a label is provided, the transformed velocity and coordinate will be saved to u{label} and y{label} attributes
@@ -200,10 +215,13 @@ class BL(Case):
             setattr(self, key, None)
 
         # Read in provided parameters and assign those specific to BL type
+        poplist = []
         for key, val in params.items():
             if key in BL.bl_params.keys():
                 setattr(self, key, val)
-                params.pop(key)
+                poplist.append(key)
+        for popkey in poplist:
+            params.pop(popkey)
 
         super().__init__('bl',units,**params)
 
@@ -213,6 +231,16 @@ class BL(Case):
             print(BL.bl_params[p])
         else:
             super().whatis(p)
+
+    def hasdata(self, p=None):
+        r = []
+        if p is None:
+            for param in BL.bl_params.keys():
+                if getattr(self,param,None) is not None: 
+                    r.append(param)
+        r.append(super().hasdata(p))
+        if len(r) == 1: return r[0] 
+        else: return r
 
 
 class Channel(Case):
@@ -245,6 +273,16 @@ class Channel(Case):
         else:
             super().whatis(p)
 
+    def hasdata(self, p=None):
+        r = []
+        if p is None:
+            for param in Channel.channel_params.keys():
+                if getattr(self,param,None) is not None: 
+                    r.append(param)
+        r.append(super().hasdata(p))
+        if len(r) == 1: return r[0] 
+        else: return r
+
 
 class Pipe(Case):
     pipe_params = {
@@ -272,6 +310,16 @@ class Pipe(Case):
         else:
             super().whatis(p)
 
+    def hasdata(self, p=None):
+        r = []
+        if p is None:
+            for param in Pipe.pipe_params.keys():
+                if getattr(self,param,None) is not None: 
+                    r.append(param)
+        r.append(super().hasdata(p))
+        if len(r) == 1: return r[0] 
+        else: return r
+
 
 class Duct(Case):
     duct_params = {
@@ -298,3 +346,13 @@ class Duct(Case):
             print(Duct.duct_params[p])
         else:
             super().whatis(p)
+
+    def hasdata(self, p=None):
+        r = []
+        if p is None:
+            for param in Duct.duct_params.keys():
+                if getattr(self,param,None) is not None: 
+                    r.append(param)
+        r.append(super().hasdata(p))
+        if len(r) == 1: return r[0] 
+        else: return r
