@@ -94,6 +94,7 @@ class Case:
         "deltastar": "Semi-local length scale",
         "yplus": "Wall-normal coordinate in friction units",
         "ystar": "Wall-normal coordinate in semi-local units",
+        "uplus": "Streamwise velocity in frction units",
 
         # Non-dimensional numbers
         "Pr": "Molecular Prandtl number",
@@ -156,7 +157,6 @@ class Case:
         for param in p:
             r.append(param is not None)
         return r
-
 
     def vel_transform(self,f,g,label:str=None):
         # Perform velocity transformation with given transformation kernels f and g
