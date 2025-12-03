@@ -183,18 +183,65 @@ class Case:
             r.append(getattr(self, param, None) is not None)
         return r
 
-    def vel_transform(self,f,g,label:str=None):
+    def vel_transform(self,f=None,g=None,fw=1,gw=1,label:str=""):
         # Perform velocity transformation with given transformation kernels f and g
+        # fw and gw are wall values of kernel that will be prepended if y=0 is not included in dataset
         # If a label is provided, the transformed velocity and coordinate will be saved to u{label} and y{label} attributes
-        if label is not None:
+        ndim = len(self.u.shape)
+        prep = True if self.y[0]>0 else False
+        if label:
             self._unfreeze()
 
-        # Do the thing
-        yscaled, uscaled = None, None # Placeholder
+            # Check if label corresponds to one of known transformations
+            if label.upper() == "VD":
+                # Van Driest
+                f = np.ones(self.u.shape)
+                g = np.sqrt(self.rho/self.rhow)
+            elif label.upper() == "TL":
+                # Trettel & Larsson
+                f = np.gradient(self.y*np.sqrt(self.rho/self.rhow)/(self.mu/self.muw),self.y,axis=-1)
+                g = self.mu/self.muw * f
+            elif label.upper() == "V":
+                # Volpiani et al.
+                f = np.sqrt(self.rho/self.rhow)/(self.mu/self.muw)**(3.0/2.0)
+                g = np.sqrt(self.rho/self.rhow)/np.sqrt(self.mu/self.muw)
+            elif label.upper() == "GFM":
+                # Griffin, Fu, Moin
+                pass
+            elif label.upper() == "H":
+                # Hasan et al.
+                pass
+
+        if f is None or g is None:
+            raise ValueError("Transformation is not known and no kernels were provided")
+
+        if prep:
+            f = np.insert(f,0,fw,axis=1 if ndim>1 else 0)
+            g = np.insert(g,0,gw,axis=1 if ndim>1 else 0)    
+
+        # Perform the numerical integration using given kernels
+        yscaled, uscaled = np.zeros(self.y.shape), np.zeros(self.u.shape)
+        sj = np.s_[:,0] if ndim>1 else np.s_[0]
+        sjp1 = np.s_[:,1] if ndim>1 else np.s_[1]
+        uscaled[sj] = (g[sj]+g[sjp1])/2.0 * self.u[sj]
+        yscaled[sj] = (f[sj]+f[sjp1])/2.0 * self.y[sj]
+
+        if prep:
+            # Cut out prepended wall entry to simplify slicing
+            g = g[1:] if ndim==1 else g[:,1:]
+            f = f[1:] if ndim==1 else f[:,1:]
+
+        for j in range(1, len(self.y)):
+            uscaled[sjp1] = uscaled[sj] + (g[sj]+g[sjp1])/2.0*(self.u[sjp1]-self.u[sj])
+            yscaled[sjp1] = yscaled[sj] + (f[sj]+f[sjp1])/2.0*(self.y[sjp1]-self.y[sj])
+            sj = sjp1
+            sjp1 = np.s_[:,j+1] if ndim>1 else np.s_[j+1]
 
         if label is not None:
             setattr(self, f'y{label}', yscaled)
             setattr(self, f'u{label}', uscaled)
+            setattr(self, f'yplus{label}', yscaled/self.deltaplus)
+            setattr(self, f'uplus{label}', uscaled/self.utau)
             self._freeze()
         return yscaled, uscaled
 
