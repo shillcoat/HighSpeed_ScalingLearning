@@ -11,11 +11,10 @@ Physical Review Fluids, 3(8), 083401."
 """
 
 # %% Imports
-import dill
 import numpy as np
 from glob import glob
 
-from db_config import BL
+from db_config import BL, save_case
 from filepaths import Volpiani2020_path  # This file is not kept in repo
 
 # %% Fetch and iterate through cases
@@ -122,6 +121,5 @@ for c in cases:
     dbCase.Retaustar = np.transpose([dbCase.delta99]) / dbCase.deltastar
 
     i = c[::-1].index('/') + 1
-    with open(c[:-i] + ".dill", 'wb') as f:
-        dill.dump(dbCase,f)
+    save_case(dbCase, c[:-i] + ".dill")
 # %%

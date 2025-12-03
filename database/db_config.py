@@ -1,5 +1,31 @@
+import dill
 import numpy as np
 from warnings import warn
+
+__all__ = ['load_case',
+           'Case',
+           'BL',
+           'Channel',
+           'Pipe',
+           'Duct']
+
+def load_case(fpath):
+    with open(fpath, 'rb') as f:
+        c = dill.load(f)
+    t = __all__[[s.lower() for s in __all__].index(c['case_type'])]
+    c.pop('case_type')
+    return globals()[t](**c)
+
+def save_case(case, fpath):
+    # Save all case info as a dict so independent of class
+    p = vars(case)
+    poplist = []
+    for key in p.keys():  # Pop all "private" members
+        if key[0] == '_': poplist.append(key)
+    for k in poplist: p.pop(k)
+    with open(fpath, 'wb') as f:
+        dill.dump(p,f)
+
 
 class Case:
     """
@@ -19,7 +45,6 @@ class Case:
         # Flags/bookkeeping
         "incomp": "Flag for incompressible cases",
         "chem": "Flag for chemically-reacting cases",
-        "units": "Units of raw data (nondim/SI)",
         "mu_law": "Function handle for viscosity law",
 
         # Working fluid properties
@@ -155,7 +180,7 @@ class Case:
             return r
         if isinstance(p, str): return getattr(self, p, None) is not None
         for param in p:
-            r.append(param is not None)
+            r.append(getattr(self, param, None) is not None)
         return r
 
     def vel_transform(self,f,g,label:str=None):
@@ -172,7 +197,6 @@ class Case:
             setattr(self, f'u{label}', uscaled)
             self._freeze()
         return yscaled, uscaled
-        
 
 
 class BL(Case):

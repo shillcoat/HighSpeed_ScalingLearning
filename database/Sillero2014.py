@@ -11,11 +11,10 @@ https://pubs.aip.org/aip/pof/article/26/10/105109/103636/Two-point-statistics-fo
 """
 
 # %% Imports
-import dill
 import numpy as np
 from glob import glob
 
-from db_config import BL
+from db_config import BL, save_case
 from filepaths import Sillero2014_path  # This file is not kept in repo
 
 # %% Fetch and iterate through cases
@@ -60,6 +59,5 @@ for c in cases:
 
     cname = c.split('/')[-1][:-5]
     i = c[::-1].index('/') + 1
-    with open(c[:-i-8] + f"{cname}.dill", 'wb') as f:
-        dill.dump(dbCase,f)
+    save_case(dbCase, c[:-i-8] + f"{cname}.dill")
 # %%

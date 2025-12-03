@@ -11,11 +11,10 @@ https://arc.aiaa.org/doi/pdf/10.2514/1.J057296
 """
 
 # %% Imports
-import dill
 import numpy as np
 from glob import glob
 
-from db_config import BL
+from db_config import BL, save_case
 from filepaths import Zhang2018_path  # This file is not kept in repo
 
 # %% Fetch and iterate through cases
@@ -71,6 +70,7 @@ for c in cases:
 
     # Mean quantities
     dbCase.u = dbCase.uinf * dat[:,4]
+    dbCase.uplus = dbCase.u / dbCase.utau
     dbCase.P = dbCase.Pinf * dat[:,5]
     dbCase.T = dbCase.Tinf * dat[:,6]
     dbCase.rhow = dbCase.P[0]/dbCase.R/dbCase.Tw
@@ -95,6 +95,5 @@ for c in cases:
     dbCase.Prt = dat[:,-2]
     dbCase.Cf = 2*dbCase.tauw/(dbCase.rhoinf + dbCase.uinf**2)
 
-    with open(c[:-9] + ".dill", 'wb') as f:
-        dill.dump(dbCase,f)
+    save_case(dbCase, c[:-9] + ".dill")
 # %%
