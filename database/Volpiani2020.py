@@ -100,6 +100,7 @@ for c in cases:
     dbCase.qw = cp * mu_eff / dbCase.Pr * (dbCase.T[:,0]-dbCase.Tw)/dbCase.y[0]
     
     dbCase.utau = np.sqrt(np.abs(dbCase.tauw) / dbCase.rhow)
+    dbCase.uplus = dbCase.u/np.transpose([dbCase.utau])
     dbCase.Mtau = dbCase.utau / np.sqrt(dbCase.gamma*dbCase.R*dbCase.Tw)
     dbCase.deltaplus = dbCase.muw / (dbCase.rhow * dbCase.utau)
     dbCase.yplus = dbCase.y/np.transpose([dbCase.deltaplus])
@@ -118,8 +119,13 @@ for c in cases:
     dbCase.delta99 = dbCase.y[id99]
     # Friction Reynolds numbers
     dbCase.Retau = dbCase.delta99 / dbCase.deltaplus
-    dbCase.Retaustar = np.transpose([dbCase.delta99]) / dbCase.deltastar
-
+    id99 = np.transpose(np.array(list(zip(range(nx),id99))))
+    dbCase.Retaustar = dbCase.delta99 / dbCase.deltastar[*id99]
+    
+    cname = c.split('/')[-2]
+    ix = np.where(dbCase.x>=xplot)[0][0]
+    print(f"Case: {cname}\nRe_tau = {dbCase.Retau[ix]:.4f}\nRe_tau* = {dbCase.Retaustar[ix]:.4f}\n")
+    
     i = c[::-1].index('/') + 1
     save_case(dbCase, c[:-i] + ".dill")
 # %%

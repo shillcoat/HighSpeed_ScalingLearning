@@ -191,32 +191,41 @@ class Case:
         prep = True if self.y[0]>0 else False
         if label:
             self._unfreeze()
+            rhop = self.rho/np.transpose([self.rhow])
+            mup = self.mu/np.transpose([self.muw])
 
             # Check if label corresponds to one of known transformations
             if label.upper() == "VD":
                 # Van Driest
                 f = np.ones(self.u.shape)
-                g = np.sqrt(self.rho/self.rhow)
+                g = np.sqrt(rhop)
             elif label.upper() == "TL":
                 # Trettel & Larsson
-                f = np.gradient(self.y*np.sqrt(self.rho/self.rhow)/(self.mu/self.muw),self.y,axis=-1)
-                g = self.mu/self.muw * f
+                f = np.gradient(self.y*np.sqrt(rhop)/mup,self.y,axis=-1)
+                g = mup * f
             elif label.upper() == "V":
                 # Volpiani et al.
-                f = np.sqrt(self.rho/self.rhow)/(self.mu/self.muw)**(3.0/2.0)
-                g = np.sqrt(self.rho/self.rhow)/np.sqrt(self.mu/self.muw)
+                f = np.sqrt(rhop)/mup**(3.0/2.0)
+                g = np.sqrt(rhop)/np.sqrt(mup)
             elif label.upper() == "GFM":
                 # Griffin, Fu, Moin: use constant stress assumption as shown to make negligible difference
                 if not all(self.hasdata(['uTL', 'yTL'])):
                     _ = self.vel_transform(label="TL")
-                f = np.gradient(self.y*np.sqrt(self.rho/self.rhow)/(self.mu/self.muw),self.y,axis=-1)
-                Seq = (self.muw/self.mu)*np.gradient(self.uplus,self.yplusTL,axis=-1)
-                Stl = np.gradient(self.uplusTL,self.yplusTL,axis=-1)
+                f = np.gradient(self.y*np.sqrt(rhop)/(mup),self.y,axis=-1)
+                if ndim > 1:
+                    Seq, Stl = np.zeros(self.u.shape), np.zeros(self.u.shape)
+                    # Unfortuntely np.gradient doesn't support multi-dim spacing specs so have to do this to support 2D data
+                    for i in range(len(self.x)):
+                        Seq[i,:] = np.gradient(self.uplus[i,:],self.yplusTL[i,:],axis=-1)/mup[i,:]
+                        Stl[i,:] = np.gradient(self.uplusTL[i,:],self.yplusTL[i,:],axis=-1)
+                else:
+                    Seq = np.gradient(self.uplus,self.yplusTL,axis=-1)/mup
+                    Stl = np.gradient(self.uplusTL,self.yplusTL,axis=-1)
                 # tauv = self.mu*np.gradient(self.u,self.y)
                 # tauR = -self.ruppvpp
                 # tp = (tauv+tauR)/self.tauw
                 tp = 1
-                g = self.muw*tp/self.mu/(tp+Seq-Stl)
+                g = tp/mup/(tp+Seq-Stl)
             elif label.upper() == "H":
                 # Hasan et al.
                 pass
@@ -229,11 +238,11 @@ class Case:
             g = np.insert(g,0,gw,axis=1 if ndim>1 else 0)    
 
         # Perform the numerical integration using given kernels
-        yscaled, uscaled = np.zeros(self.y.shape), np.zeros(self.u.shape)
+        yscaled, uscaled = np.zeros(self.u.shape), np.zeros(self.u.shape)
         sj = np.s_[:,0] if ndim>1 else np.s_[0]
         sjp1 = np.s_[:,1] if ndim>1 else np.s_[1]
         uscaled[sj] = (g[sj]+g[sjp1])/2.0 * self.u[sj]
-        yscaled[sj] = (f[sj]+f[sjp1])/2.0 * self.y[sj]
+        yscaled[sj] = (f[sj]+f[sjp1])/2.0 * self.y[0]
 
         if prep:
             # Cut out prepended wall entry to simplify slicing
@@ -242,15 +251,15 @@ class Case:
 
         for j in range(1, len(self.y)):
             uscaled[sjp1] = uscaled[sj] + (g[sj]+g[sjp1])/2.0*(self.u[sjp1]-self.u[sj])
-            yscaled[sjp1] = yscaled[sj] + (f[sj]+f[sjp1])/2.0*(self.y[sjp1]-self.y[sj])
+            yscaled[sjp1] = yscaled[sj] + (f[sj]+f[sjp1])/2.0*(self.y[j]-self.y[j-1])
             sj = sjp1
             sjp1 = np.s_[:,j+1] if ndim>1 else np.s_[j+1]
 
         if label is not None:
             setattr(self, f'y{label}', yscaled)
             setattr(self, f'u{label}', uscaled)
-            setattr(self, f'yplus{label}', yscaled/self.deltaplus)
-            setattr(self, f'uplus{label}', uscaled/self.utau)
+            setattr(self, f'yplus{label}', yscaled/np.transpose([self.deltaplus]))
+            setattr(self, f'uplus{label}', uscaled/np.transpose([self.utau]))
             self._freeze()
         return yscaled, uscaled
 
