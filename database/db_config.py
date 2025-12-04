@@ -206,8 +206,17 @@ class Case:
                 f = np.sqrt(self.rho/self.rhow)/(self.mu/self.muw)**(3.0/2.0)
                 g = np.sqrt(self.rho/self.rhow)/np.sqrt(self.mu/self.muw)
             elif label.upper() == "GFM":
-                # Griffin, Fu, Moin
-                pass
+                # Griffin, Fu, Moin: use constant stress assumption as shown to make negligible difference
+                if not all(self.hasdata(['uTL', 'yTL'])):
+                    _ = self.vel_transform(label="TL")
+                f = np.gradient(self.y*np.sqrt(self.rho/self.rhow)/(self.mu/self.muw),self.y,axis=-1)
+                Seq = (self.muw/self.mu)*np.gradient(self.uplus,self.yplusTL,axis=-1)
+                Stl = np.gradient(self.uplusTL,self.yplusTL,axis=-1)
+                # tauv = self.mu*np.gradient(self.u,self.y)
+                # tauR = -self.ruppvpp
+                # tp = (tauv+tauR)/self.tauw
+                tp = 1
+                g = self.muw*tp/self.mu/(tp+Seq-Stl)
             elif label.upper() == "H":
                 # Hasan et al.
                 pass

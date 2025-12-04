@@ -22,7 +22,7 @@ for c in glob(f"{fpath.Zhang2018_path}/*.dill"):
     _ = Zhang2018[cname].vel_transform(label="VD")
     _ = Zhang2018[cname].vel_transform(label="TL")
     _ = Zhang2018[cname].vel_transform(label="V")
-    # _ = Zhang2018[cname].vel_transform(label="GFM")
+    _ = Zhang2018[cname].vel_transform(label="GFM")
 
 # %% Plotting
 # No compressible scaling
@@ -77,17 +77,17 @@ ax.set_ylabel(r"$\overline{u}^+_{\mathrm{V}}$")
 ax.set_title("Volpiani Correction")
 fig.tight_layout(); fig.show()
 
-# # Griffin et al.
-# fig, ax = plt.subplots(figsize=[6,4])
-# ax.grid(which='both', color='0.9')
-# for c in Zhang2018.keys():
-#     ax.semilogx(Zhang2018[c].yplusGFM, Zhang2018[c].uplusGFM, label=f"Z18: {c}")
-# ax.semilogx(Sillero2014.yplus, Sillero2014.uplus, color='black', 
-#             label="Sillero et al. (2014)")
-# ax.legend(loc='best', framealpha=1)
-# ax.set_xlabel(r"$y^+$")
-# ax.set_ylabel(r"$\overline{u}^+_{\mathrm{GFM}}$")
-# ax.set_title("Griffin, Fu, & Moin Correction")
-# fig.tight_layout(); fig.show()
+# Griffin et al.
+fig, ax = plt.subplots(figsize=[6,4])
+ax.grid(which='both', color='0.9')
+for c in Zhang2018.keys():
+    ax.semilogx(Zhang2018[c].yplusGFM, Zhang2018[c].uplusGFM, label=f"Z18: {c}")
+ax.semilogx(Sillero2014.yplus, Sillero2014.uplus, color='black', 
+            label="Sillero et al. (2014)")
+ax.legend(loc='best', framealpha=1)
+ax.set_xlabel(r"$y^*$")
+ax.set_ylabel(r"$\overline{u}^+_{\mathrm{GFM}}$")
+ax.set_title(r"Griffin, Fu, \& Moin Correction")
+fig.tight_layout(); fig.show()
 
 # %%
