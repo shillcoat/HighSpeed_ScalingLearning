@@ -50,9 +50,9 @@ for c in cases:
         avg = avg.reshape([nx,ny,nv], order='F')
 
     dbCase.mu_law = lambda T: muref * T**muexp
-    dbCase.uinf = 1
-    dbCase.rhoinf = 1
-    dbCase.Tinf = 1
+    dbCase.uinf = 1.0
+    dbCase.rhoinf = 1.0
+    dbCase.Tinf = 1.0
     
     # Reynolds mean and fluctuating quantities
     dbCase.rho = avg[:,:,0]

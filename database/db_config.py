@@ -227,7 +227,7 @@ class Case:
                 tp = 1
                 g = tp/mup/(tp+Seq-Stl)
             elif label.upper() == "H":
-                # Hasan et al.
+                # Hasan et al. -> Might be interesting to do scaling analysis for eddy viscosity rather than just fit
                 pass
 
         if f is None or g is None:

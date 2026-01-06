@@ -23,10 +23,10 @@ header_size = 142
 for c in cases:
     dbCase = BL('si', incomp=0, chem=0, gamma=1.4, Pr=0.71, Bk=0)
     if "M8Tw048" in c:  # Case with nitrogen as working fluid
-         dbCase.R = 297
+         dbCase.R = 297.0
          dbCase.mu_law = lambda T: 1.418e-6*T**(3.0/2.0)/(T+116.4*10**(-5.0/T))
     else:  # Working fluid is air for all other cases
-         dbCase.R = 287
+         dbCase.R = 287.0
          dbCase.mu_law = lambda T: 1.458e-6*T**(3.0/2.0)/(T+110.4)
 
     # Read info from header
