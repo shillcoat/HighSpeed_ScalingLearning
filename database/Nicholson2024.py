@@ -54,6 +54,7 @@ for c in cases:
                 Uinf1 = float(params[1])
                 rhoinf1 = float(params[2])
                 Tinf1 = float(params[3])
+                Pinf1 = rhoinf1*dbCase.R*Tinf1
             if i == 21:
                 params = line[1:].split()
                 U1['x'] = float(params[1])
@@ -134,15 +135,23 @@ for c in cases:
     cw = c[:-8] + 'wallParams.dat'
     header_size = 93
     datw = np.loadtxt(cw, skiprows=header_size)
-    cf, ch, cp = np.array([]), np.array([]), np.array([])
+
+    Pw = datw[:,-1]*0.5*rhoinf1*Uinf1**2+Pinf1
+    dxg = np.diff(datw[:,0],prepend=datw[0,0]); dzg = np.diff(datw[:,1],prepend=datw[0,1])
+    s = np.cumsum(np.sqrt(dxg**2+dzg**2))
+    dPwds = np.gradient(Pw,s)
+
+    cf, ch, cp, dpds = np.array([]), np.array([]), np.array([]), np.array([])
     for xloc in dbCase.x:
-        ix = np.argmin(datw[:,0]-xloc)
+        ix = np.argmin(np.abs(datw[:,0]-xloc))
         cf = np.append(cf,datw[ix,-3])
         ch = np.append(ch,datw[ix,-2])
         cp = np.append(cp,datw[ix,-1])
+        dpds = np.append(dpds,dPwds[ix])
     dbCase.Cf = cf
     dbCase.tauw = cf*rhoinf1*Uinf1**2/2.0
-    dbCase.utau = np.sqrt(dbCase.tauw/dbCase.rhow)
+    # Take absolute value of tauw to try to get something even in recirculation region
+    dbCase.utau = np.sqrt(np.abs(dbCase.tauw)/dbCase.rhow)
     dbCase.Mtau = dbCase.utau/np.sqrt(dbCase.gamma*dbCase.R*dbCase.Tw)
     cap_p = dbCase.R*dbCase.gamma/(dbCase.gamma-1.0)
     dbCase.qw = ch*rhoinf1*Uinf1*cap_p*(Tr1-dbCase.Tw)
@@ -189,22 +198,28 @@ for c in cases:
     dbCase.delta1k = np.zeros([nx])
     dbCase.delta2 = np.zeros([nx])
     dbCase.H = np.zeros([nx])
-    Pe = np.zeros([nx])
+    # Pe = np.zeros([nx])
     for xi in range(nx):
         y = dbCase.y[xi,:id99[1,xi]]
         dbCase.delta1[xi] = np.trapezoid(I1[xi,:id99[1,xi]],y)
         dbCase.delta1k[xi] = np.trapezoid(I1k[xi,:id99[1,xi]],y)
         dbCase.delta2[xi] = np.trapezoid(I2[xi,:id99[1,xi]],y)
-        Pe[xi] = dbCase.P_F[xi,id99[1,xi]]
+        # Pe[xi] = dbCase.P_F[xi,id99[1,xi]]
     dbCase.H = dbCase.delta1/dbCase.delta2
     dbCase.Redelta99 = dbCase.rhoinf*dbCase.uinf_F*dbCase.delta99/dbCase.muinf_F
     dbCase.Redelta1 = dbCase.rhoinf*dbCase.uinf_F*dbCase.delta1/dbCase.muinf_F
     dbCase.Redelta2 = dbCase.rhoinf*dbCase.uinf_F*dbCase.delta2/dbCase.muw
     dbCase.Retheta = dbCase.rhoinf*dbCase.uinf_F*dbCase.delta2/dbCase.muinf_F
-    # Unfortunately due to coarse grain of stations I can only get very coarse-grained outer pressure gradient
-    dbCase.Bk = dbCase.delta1k/dbCase.tauw*np.gradient(Pe,dbCase.x)
-    # dbCase.Bk = dbCase.delta1k/dbCase.tauw*np.gradient(dbCase.Pinf_F,dbCase.x)
+
+    # Trying to get Bk using BL edge pressure doesn't give sensical values because too coarse-grained.
+    # Instead try using wall pressure gradient as this is reported in a finer grain and from thin BL
+    # theory should not be different from edge values.
+    dbCase.Bk = dbCase.delta1k/dbCase.tauw*dpds
+    # # Unfortunately due to coarse grain of stations I can only get very coarse-grained outer pressure gradient
+    # dbCase.Bk = dbCase.delta1k/dbCase.tauw*np.gradient(Pe,dbCase.x)
+    # # dbCase.Bk = dbCase.delta1k/dbCase.tauw*np.gradient(dbCase.Pinf_F,dbCase.x)
 
     cname = c.split('/')[-1][:-9]
+    # print(f"Case: {cname}\nBk = {dbCase.Bk}\n")
     save_case(dbCase, Nicholson2019_path + f"/{cname}.dill")
 # %%

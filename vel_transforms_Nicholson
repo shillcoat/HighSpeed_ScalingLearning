@@ -32,7 +32,7 @@ for c in glob(f"{fpath.Nicholson2019_path}/*.dill"):
 
 # %% Plotting
 for c in Nicholson2024.keys():
-    fig, axs = plt.subplots(3,2,figsize=(6,8))
+    fig, axs = plt.subplots(3,2,figsize=(7,8))
 
     # No compressible scaling
     ax = axs[0,0]
@@ -41,6 +41,7 @@ for c in Nicholson2024.keys():
         ax.semilogx(Nicholson2024[c].yplus[xi], Nicholson2024[c].uplus[xi], 
                     label=f"xg: {Nicholson2024[c].x[xi]:.3f}")
     ax.semilogx(Sillero2014.yplus, Sillero2014.uplus, color='black')
+    ax.set_ylim(-2,40)
     ax.set_xlabel(r"$y^+$")
     ax.set_ylabel(r"$\overline{u}^+$")
     ax.set_title("No Compressibility Correction")
@@ -53,6 +54,7 @@ for c in Nicholson2024.keys():
     for xi in range(len(Nicholson2024[c].x)):
         ax.semilogx(Nicholson2024[c].yplusVD[xi], Nicholson2024[c].uplusVD[xi])
     ax.semilogx(Sillero2014.yplus, Sillero2014.uplus, color='black')
+    ax.set_ylim(-2,40)
     ax.set_xlabel(r"$y^+$")
     ax.set_ylabel(r"$\overline{u}^+_{\mathrm{VD}}$")
     ax.set_title("Van Driest Correction")
@@ -63,6 +65,7 @@ for c in Nicholson2024.keys():
     for xi in range(len(Nicholson2024[c].x)):
         ax.semilogx(Nicholson2024[c].yplusTL[xi], Nicholson2024[c].uplusTL[xi])
     ax.semilogx(Sillero2014.yplus, Sillero2014.uplus, color='black')
+    ax.set_ylim(-2,40)
     ax.set_xlabel(r"$y^*$")
     ax.set_ylabel(r"$\overline{u}^+_{\mathrm{TL}}$")
     ax.set_title(r"Trettel \& Larsson Correction")
@@ -73,6 +76,7 @@ for c in Nicholson2024.keys():
     for xi in range(len(Nicholson2024[c].x)):
         ax.semilogx(Nicholson2024[c].yplusV[xi], Nicholson2024[c].uplusV[xi])
     ax.semilogx(Sillero2014.yplus, Sillero2014.uplus, color='black')
+    ax.set_ylim(-2,40)
     ax.set_xlabel(r"$y^+_\mathrm{V}$")
     ax.set_ylabel(r"$\overline{u}^+_{\mathrm{V}}$")
     ax.set_title("Volpiani Correction")
@@ -82,6 +86,7 @@ for c in Nicholson2024.keys():
     ax.grid(which='both', color='0.9')
     for xi in range(len(Nicholson2024[c].x)):
         ax.semilogx(Nicholson2024[c].yplusGFM[xi], Nicholson2024[c].uplusGFM[xi])
+    ax.set_ylim(-2,40)
     ax.semilogx(Sillero2014.yplus, Sillero2014.uplus, color='black')
     ax.set_xlabel(r"$y^*$")
     ax.set_ylabel(r"$\overline{u}^+_{\mathrm{GFM}}$")
