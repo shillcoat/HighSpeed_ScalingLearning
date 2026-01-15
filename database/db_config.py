@@ -188,7 +188,7 @@ class Case:
         # fw and gw are wall values of kernel that will be prepended if y=0 is not included in dataset
         # If a label is provided, the transformed velocity and coordinate will be saved to u{label} and y{label} attributes
         ndim = len(self.u.shape)
-        prep = True if self.y[0]>0 else False
+        prep = True if np.all(self.y[...,0]>0) else False
         if label:
             self._unfreeze()
             rhop = self.rho/np.transpose([self.rhow])
@@ -201,7 +201,12 @@ class Case:
                 g = np.sqrt(rhop)
             elif label.upper() == "TL":
                 # Trettel & Larsson
-                f = np.gradient(self.y*np.sqrt(rhop)/mup,self.y,axis=-1)
+                if len(self.y.shape) == 1:
+                    f = np.gradient(self.y*np.sqrt(rhop)/mup,self.y,axis=-1)
+                else:
+                    f = np.zeros(self.u.shape)
+                    for xi in range(self.u.shape[0]):
+                        f[xi] = np.gradient(self.y[xi]*np.sqrt(rhop[xi])/mup[xi],self.y[xi],axis=-1)
                 g = mup * f
             elif label.upper() == "V":
                 # Volpiani et al.
@@ -211,7 +216,12 @@ class Case:
                 # Griffin, Fu, Moin: use constant stress assumption as shown to make negligible difference
                 if not all(self.hasdata(['uTL', 'yTL'])):
                     _ = self.vel_transform(label="TL")
-                f = np.gradient(self.y*np.sqrt(rhop)/(mup),self.y,axis=-1)
+                if len(self.y.shape) == 1:
+                    f = np.gradient(self.y*np.sqrt(rhop)/mup,self.y,axis=-1)
+                else:
+                    f = np.zeros(self.u.shape)
+                    for xi in range(self.u.shape[0]):
+                        f[xi] = np.gradient(self.y[xi]*np.sqrt(rhop[xi])/mup[xi],self.y[xi],axis=-1)
                 if ndim > 1:
                     Seq, Stl = np.zeros(self.u.shape), np.zeros(self.u.shape)
                     # Unfortuntely np.gradient doesn't support multi-dim spacing specs so have to do this to support 2D data
@@ -242,16 +252,16 @@ class Case:
         sj = np.s_[:,0] if ndim>1 else np.s_[0]
         sjp1 = np.s_[:,1] if ndim>1 else np.s_[1]
         uscaled[sj] = (g[sj]+g[sjp1])/2.0 * self.u[sj]
-        yscaled[sj] = (f[sj]+f[sjp1])/2.0 * self.y[0]
+        yscaled[sj] = (f[sj]+f[sjp1])/2.0 * self.y[...,0]
 
         if prep:
             # Cut out prepended wall entry to simplify slicing
             g = g[1:] if ndim==1 else g[:,1:]
             f = f[1:] if ndim==1 else f[:,1:]
 
-        for j in range(1, len(self.y)):
+        for j in range(1, self.y.shape[-1]):
             uscaled[sjp1] = uscaled[sj] + (g[sj]+g[sjp1])/2.0*(self.u[sjp1]-self.u[sj])
-            yscaled[sjp1] = yscaled[sj] + (f[sj]+f[sjp1])/2.0*(self.y[j]-self.y[j-1])
+            yscaled[sjp1] = yscaled[sj] + (f[sj]+f[sjp1])/2.0*(self.y[...,j]-self.y[...,j-1])
             sj = sjp1
             sjp1 = np.s_[:,j+1] if ndim>1 else np.s_[j+1]
 

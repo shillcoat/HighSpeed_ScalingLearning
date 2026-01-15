@@ -23,8 +23,8 @@ Sillero2014 = db.load_case(f"{fpath.Sillero2014_path}/Re_theta5000.dill")
 #     cname = c.split('/')[-1][:-5]
 #     Zhang2018[cname] = db.load_case(c)
 #     Cq = getattr(Zhang2018[cname],Cquant)
-#     Cmin = Cq if Cq<Cmin else Cmin
-#     Cmax = Cq if Cq>Cmax else Cmax
+#     Cmin = np.min(Cq) if np.min(Cq)<Cmin else Cmin
+#     Cmax = np.max(Cq) if np.max(Cq)>Cmax else Cmax
 #     _ = Zhang2018[cname].vel_transform(label="VD")
 #     _ = Zhang2018[cname].vel_transform(label="TL")
 #     _ = Zhang2018[cname].vel_transform(label="V")
@@ -34,8 +34,8 @@ Sillero2014 = db.load_case(f"{fpath.Sillero2014_path}/Re_theta5000.dill")
 #     cname = c.split('/')[-1][:-5]
 #     Volpiani2020[cname] = db.load_case(c)
 #     Cq = getattr(Volpiani2020[cname],Cquant)[Vxs]
-#     Cmin = Cq if Cq<Cmin else Cmin
-#     Cmax = Cq if Cq>Cmax else Cmax
+#     Cmin = np.min(Cq) if np.min(Cq)<Cmin else Cmin
+#     Cmax = np.max(Cq) if np.max(Cq)>Cmax else Cmax
 #     _ = Volpiani2020[cname].vel_transform(label="VD")
 #     _ = Volpiani2020[cname].vel_transform(label="TL")
 #     _ = Volpiani2020[cname].vel_transform(label="V")
@@ -44,15 +44,31 @@ Wenzel2019 = {}; Retau_plt = 490
 for c in glob(f"{fpath.Wenzel2019_path}/*.dill"):
     cname = c.split('/')[-1][:-5]
     dat = db.load_case(c)
-    if Retau_plt>dat.Retau[-1] or Retau_plt<dat.Retau[0]: continue  # Outside of range of Retau covered by data
+    # if Retau_plt>dat.Retau[-1] or Retau_plt<dat.Retau[0]: continue  # Outside of range of Retau covered by data
     Wenzel2019[cname] = dat
     Cq = getattr(Wenzel2019[cname],Cquant)
-    Cmin = Cq if Cq<Cmin else Cmin
-    Cmax = Cq if Cq>Cmax else Cmax
+    Cmin = np.min(Cq) if np.min(Cq)<Cmin else Cmin
+    Cmax = np.max(Cq) if np.max(Cq)>Cmax else Cmax
     _ = Wenzel2019[cname].vel_transform(label="VD")
     _ = Wenzel2019[cname].vel_transform(label="TL")
     _ = Wenzel2019[cname].vel_transform(label="V")
     _ = Wenzel2019[cname].vel_transform(label="GFM")
+# Nicholson2024 = {}  # Not good with current data: no meaningful Bk
+# for c in glob(f"{fpath.Nicholson2019_path}/*.dill"):
+#     cname = c.split('/')[-1][:-5]
+#     Nicholson2024[cname] = db.load_case(c)
+#     Cq = getattr(Nicholson2024[cname],Cquant)
+#     Cmin = np.min(Cq) if np.min(Cq)<Cmin else Cmin
+#     Cmax = np.max(Cq) if np.max(Cq)>Cmax else Cmax
+
+#     # Cheat and copy over Favre-averaged values to use in transforms as I don't have Reynolds averaged values
+#     Nicholson2024[cname].u = Nicholson2024[cname].u_F
+#     Nicholson2024[cname].mu = Nicholson2024[cname].mu_F
+
+#     _ = Nicholson2024[cname].vel_transform(label="VD")
+#     _ = Nicholson2024[cname].vel_transform(label="TL")
+#     _ = Nicholson2024[cname].vel_transform(label="V")
+#     _ = Nicholson2024[cname].vel_transform(label="GFM")
 
 # %% Plotting
 col = lambda q: cm.rainbow((q-Cmin)/(Cmax-Cmin))
@@ -68,11 +84,16 @@ ax.grid(which='both', color='0.9')
 #     ax.semilogx(Volpiani2020[c].yplus[Vxs], Volpiani2020[c].uplus[Vxs], '--',
 #                 color=col(getattr(Volpiani2020[c],Cquant)[Vxs]), label=f"V20:{c}")
 for c in Wenzel2019.keys():
-    xi = np.where(Wenzel2019[c].Retau>=Retau_plt)[0][0]
+    # xi = np.where(Wenzel2019[c].Retau>=Retau_plt)[0][0]
     lstyle = '-' if Wenzel2019[c].Minf[0]>1.0 else '--'
-    ax.semilogx(Wenzel2019[c].yplus[xi], Wenzel2019[c].uplus[xi], lstyle,
-                color=col(getattr(Wenzel2019[c],Cquant)), label=f"W19:{c}",
-                alpha=1.0 if Wenzel2019[c].Minf[0]>1.0 else 0.3)
+    for xi in range(0,len(Wenzel2019[c].x),len(Wenzel2019[c].x)//6):
+        ax.semilogx(Wenzel2019[c].yplus[xi], Wenzel2019[c].uplus[xi], lstyle,
+                    color=col(getattr(Wenzel2019[c],Cquant)), label=f"W19:{c}",
+                    alpha=1.0 if Wenzel2019[c].Minf[0]>1.0 else 0.3)
+# for c in Nicholson2024.keys():
+#     for xi in range(len(Nicholson2024[c].x)):
+#         ax.semilogx(Nicholson2024[c].yplus[xi], Nicholson2024[c].uplus[xi], '-',
+#                 color=col(getattr(Nicholson2024[c],Cquant)[xi]), label=f"N24:{c}")
 ax.semilogx(Sillero2014.yplus, Sillero2014.uplus, color='black', 
             label="Sillero et al. (2014)")
 # ax.legend(loc='best', framealpha=1)
@@ -92,11 +113,16 @@ ax.grid(which='both', color='0.9')
 #     ax.semilogx(Volpiani2020[c].yplusVD[Vxs], Volpiani2020[c].uplusVD[Vxs], '--',
 #                 color=col(getattr(Volpiani2020[c],Cquant)[Vxs]), label=f"V20:{c}")
 for c in Wenzel2019.keys():
-    xi = np.where(Wenzel2019[c].Retau>=Retau_plt)[0][0]
+    # xi = np.where(Wenzel2019[c].Retau>=Retau_plt)[0][0]
     lstyle = '-' if Wenzel2019[c].Minf[0]>1.0 else '--'
-    ax.semilogx(Wenzel2019[c].yplusVD[xi], Wenzel2019[c].uplusVD[xi], lstyle,
-                color=col(getattr(Wenzel2019[c],Cquant)), label=f"W19:{c}",
-                alpha=1.0 if Wenzel2019[c].Minf[0]>1.0 else 0.3)
+    for xi in range(0,len(Wenzel2019[c].x),len(Wenzel2019[c].x)//6):
+        ax.semilogx(Wenzel2019[c].yplusVD[xi], Wenzel2019[c].uplusVD[xi], lstyle,
+                    color=col(getattr(Wenzel2019[c],Cquant)), label=f"W19:{c}",
+                    alpha=1.0 if Wenzel2019[c].Minf[0]>1.0 else 0.3)
+# for c in Nicholson2024.keys():
+#     for xi in range(len(Nicholson2024[c].x)):
+#         ax.semilogx(Nicholson2024[c].yplusVD[xi], Nicholson2024[c].uplusVD[xi], '-',
+#                 color=col(getattr(Nicholson2024[c],Cquant)[xi]), label=f"N24:{c}")
 ax.semilogx(Sillero2014.yplus, Sillero2014.uplus, color='black', 
             label="Sillero et al. (2014)")
 # ax.legend(loc='best', framealpha=1)
@@ -116,11 +142,16 @@ ax.grid(which='both', color='0.9')
 #     ax.semilogx(Volpiani2020[c].yplusTL[Vxs], Volpiani2020[c].uplusTL[Vxs], '--',
 #                 color=col(getattr(Volpiani2020[c],Cquant)[Vxs]), label=f"V20:{c}")
 for c in Wenzel2019.keys():
-    xi = np.where(Wenzel2019[c].Retau>=Retau_plt)[0][0]
+    # xi = np.where(Wenzel2019[c].Retau>=Retau_plt)[0][0]
     lstyle = '-' if Wenzel2019[c].Minf[0]>1.0 else '--'
-    ax.semilogx(Wenzel2019[c].yplusTL[xi], Wenzel2019[c].uplusTL[xi], lstyle,
-                color=col(getattr(Wenzel2019[c],Cquant)), label=f"W19:{c}",
-                alpha=1.0 if Wenzel2019[c].Minf[0]>1.0 else 0.3)
+    for xi in range(0,len(Wenzel2019[c].x),len(Wenzel2019[c].x)//6):
+        ax.semilogx(Wenzel2019[c].yplusTL[xi], Wenzel2019[c].uplusTL[xi], lstyle,
+                    color=col(getattr(Wenzel2019[c],Cquant)), label=f"W19:{c}",
+                    alpha=1.0 if Wenzel2019[c].Minf[0]>1.0 else 0.3)
+# for c in Nicholson2024.keys():
+#     for xi in range(len(Nicholson2024[c].x)):
+#         ax.semilogx(Nicholson2024[c].yplusTL[xi], Nicholson2024[c].uplusTL[xi], '-',
+#                 color=col(getattr(Nicholson2024[c],Cquant)[xi]), label=f"N24:{c}")
 ax.semilogx(Sillero2014.yplus, Sillero2014.uplus, color='black', 
             label="Sillero et al. (2014)")
 # ax.legend(loc='best', framealpha=1)
@@ -140,11 +171,16 @@ ax.grid(which='both', color='0.9')
 #     ax.semilogx(Volpiani2020[c].yplusV[Vxs], Volpiani2020[c].uplusV[Vxs], '--', 
 #                 color=col(getattr(Volpiani2020[c],Cquant)[Vxs]), label=f"V20:{c}")
 for c in Wenzel2019.keys():
-    xi = np.where(Wenzel2019[c].Retau>=Retau_plt)[0][0]
+    # xi = np.where(Wenzel2019[c].Retau>=Retau_plt)[0][0]
     lstyle = '-' if Wenzel2019[c].Minf[0]>1.0 else '--'
-    ax.semilogx(Wenzel2019[c].yplusV[xi], Wenzel2019[c].uplusV[xi], lstyle,
-                color=col(getattr(Wenzel2019[c],Cquant)), label=f"W19:{c}",
-                alpha=1.0 if Wenzel2019[c].Minf[0]>1.0 else 0.3)
+    for xi in range(0,len(Wenzel2019[c].x),len(Wenzel2019[c].x)//6):
+        ax.semilogx(Wenzel2019[c].yplusV[xi], Wenzel2019[c].uplusV[xi], lstyle,
+                    color=col(getattr(Wenzel2019[c],Cquant)), label=f"W19:{c}",
+                    alpha=1.0 if Wenzel2019[c].Minf[0]>1.0 else 0.3)
+# for c in Nicholson2024.keys():
+#     for xi in range(len(Nicholson2024[c].x)):
+#         ax.semilogx(Nicholson2024[c].yplusV[xi], Nicholson2024[c].uplusV[xi], '-',
+#                 color=col(getattr(Nicholson2024[c],Cquant)[xi]), label=f"N24:{c}")
 ax.semilogx(Sillero2014.yplus, Sillero2014.uplus, color='black', 
             label="Sillero et al. (2014)")
 # ax.legend(loc='best', framealpha=1)
@@ -164,11 +200,16 @@ ax.grid(which='both', color='0.9')
 #     ax.semilogx(Volpiani2020[c].yplusGFM[Vxs], Volpiani2020[c].uplusGFM[Vxs], '--', 
 #                 color=col(getattr(Volpiani2020[c],Cquant)[Vxs]),label=f"V20:{c}")
 for c in Wenzel2019.keys():
-    xi = np.where(Wenzel2019[c].Retau>=Retau_plt)[0][0]
+    # xi = np.where(Wenzel2019[c].Retau>=Retau_plt)[0][0]
     lstyle = '-' if Wenzel2019[c].Minf[0]>1.0 else '--'
-    ax.semilogx(Wenzel2019[c].yplusGFM[xi], Wenzel2019[c].uplusGFM[xi], lstyle,
-                color=col(getattr(Wenzel2019[c],Cquant)), label=f"W19:{c}",
-                alpha=1.0 if Wenzel2019[c].Minf[0]>1.0 else 0.3)
+    for xi in range(0,len(Wenzel2019[c].x),len(Wenzel2019[c].x)//6):
+        ax.semilogx(Wenzel2019[c].yplusGFM[xi], Wenzel2019[c].uplusGFM[xi], lstyle,
+                    color=col(getattr(Wenzel2019[c],Cquant)), label=f"W19:{c}",
+                    alpha=1.0 if Wenzel2019[c].Minf[0]>1.0 else 0.3)
+# for c in Nicholson2024.keys():
+#     for xi in range(len(Nicholson2024[c].x)):
+#         ax.semilogx(Nicholson2024[c].yplusGFM[xi], Nicholson2024[c].uplusGFM[xi], '-',
+#                 color=col(getattr(Nicholson2024[c],Cquant)[xi]), label=f"N24:{c}")
 ax.semilogx(Sillero2014.yplus, Sillero2014.uplus, color='black', 
             label="Sillero et al. (2014)")
 # ax.legend(loc='best', framealpha=1)

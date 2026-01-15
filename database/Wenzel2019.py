@@ -19,7 +19,7 @@ from filepaths import Wenzel2019_path  # This file is not kept in repo
 cases = glob(Wenzel2019_path + "/data.npy/*.npy")
 for c in cases:
     cname = c.split('/')[-1][:-4]
-    dbCase = BL('si', incomp=0, chem=0, gamma=1.4, Pr=0.71, R=287.0)
+    dbCase = BL('si', incomp=0, chem=0, gamma=1.4, Pr=0.71, R=287.0, Bq=0.0)
     dat = np.load(c, allow_pickle=True)[()]
 
     dbCase.x = dat['geometry']['x']

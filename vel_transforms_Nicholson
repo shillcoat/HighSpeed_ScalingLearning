@@ -1,0 +1,97 @@
+# %% Imports and plot formatting
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+from glob import glob
+
+import matplotlib
+# matplotlib.use('TkAgg')  # For interactive plot
+plt_template = {
+    "text.usetex": True
+}
+matplotlib.rcParams.update(plt_template)
+
+from database import db_config as db
+import database.filepaths as fpath
+
+# %% Load cases
+Sillero2014 = db.load_case(f"{fpath.Sillero2014_path}/Re_theta5000.dill")
+Nicholson2024 = {}
+for c in glob(f"{fpath.Nicholson2019_path}/*.dill"):
+    cname = c.split('/')[-1][:-5]
+    Nicholson2024[cname] = db.load_case(c)
+
+    # Cheat and copy over Favre-averaged values to use in transforms as I don't have Reynolds averaged values
+    Nicholson2024[cname].u = Nicholson2024[cname].u_F
+    Nicholson2024[cname].mu = Nicholson2024[cname].mu_F
+
+    _ = Nicholson2024[cname].vel_transform(label="VD")
+    _ = Nicholson2024[cname].vel_transform(label="TL")
+    _ = Nicholson2024[cname].vel_transform(label="V")
+    _ = Nicholson2024[cname].vel_transform(label="GFM")
+
+# %% Plotting
+for c in Nicholson2024.keys():
+    fig, axs = plt.subplots(3,2,figsize=(6,8))
+
+    # No compressible scaling
+    ax = axs[0,0]
+    ax.grid(which='both', color='0.9')
+    for xi in range(len(Nicholson2024[c].x)):
+        ax.semilogx(Nicholson2024[c].yplus[xi], Nicholson2024[c].uplus[xi], 
+                    label=f"xg: {Nicholson2024[c].x[xi]:.3f}")
+    ax.semilogx(Sillero2014.yplus, Sillero2014.uplus, color='black')
+    ax.set_xlabel(r"$y^+$")
+    ax.set_ylabel(r"$\overline{u}^+$")
+    ax.set_title("No Compressibility Correction")
+
+    handles, labels = ax.get_legend_handles_labels()
+
+    # Van Driest
+    ax = axs[0,1]
+    ax.grid(which='both', color='0.9')
+    for xi in range(len(Nicholson2024[c].x)):
+        ax.semilogx(Nicholson2024[c].yplusVD[xi], Nicholson2024[c].uplusVD[xi])
+    ax.semilogx(Sillero2014.yplus, Sillero2014.uplus, color='black')
+    ax.set_xlabel(r"$y^+$")
+    ax.set_ylabel(r"$\overline{u}^+_{\mathrm{VD}}$")
+    ax.set_title("Van Driest Correction")
+
+    # Trettel & Larsson
+    ax = axs[1,0]
+    ax.grid(which='both', color='0.9')
+    for xi in range(len(Nicholson2024[c].x)):
+        ax.semilogx(Nicholson2024[c].yplusTL[xi], Nicholson2024[c].uplusTL[xi])
+    ax.semilogx(Sillero2014.yplus, Sillero2014.uplus, color='black')
+    ax.set_xlabel(r"$y^*$")
+    ax.set_ylabel(r"$\overline{u}^+_{\mathrm{TL}}$")
+    ax.set_title(r"Trettel \& Larsson Correction")
+
+    # Volpiani et al.
+    ax = axs[1,1]
+    ax.grid(which='both', color='0.9')
+    for xi in range(len(Nicholson2024[c].x)):
+        ax.semilogx(Nicholson2024[c].yplusV[xi], Nicholson2024[c].uplusV[xi])
+    ax.semilogx(Sillero2014.yplus, Sillero2014.uplus, color='black')
+    ax.set_xlabel(r"$y^+_\mathrm{V}$")
+    ax.set_ylabel(r"$\overline{u}^+_{\mathrm{V}}$")
+    ax.set_title("Volpiani Correction")
+
+    # Griffin et al.
+    ax = axs[2,0]
+    ax.grid(which='both', color='0.9')
+    for xi in range(len(Nicholson2024[c].x)):
+        ax.semilogx(Nicholson2024[c].yplusGFM[xi], Nicholson2024[c].uplusGFM[xi])
+    ax.semilogx(Sillero2014.yplus, Sillero2014.uplus, color='black')
+    ax.set_xlabel(r"$y^*$")
+    ax.set_ylabel(r"$\overline{u}^+_{\mathrm{GFM}}$")
+    ax.set_title(r"Griffin, Fu, \& Moin Correction")
+
+    ax = axs[2,1]
+    ax.legend(handles,labels,loc="center",frameon=False)
+    ax.axis("off")
+
+    fig.suptitle(c)
+    fig.tight_layout(); fig.show()
+
+# %%
