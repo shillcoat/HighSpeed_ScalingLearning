@@ -221,5 +221,6 @@ for c in cases:
 
     cname = c.split('/')[-1][:-9]
     # print(f"Case: {cname}\nBk = {dbCase.Bk}\n")
+    print(f"Case: {cname}\nBq = {dbCase.Bq}\n")
     save_case(dbCase, Nicholson2019_path + f"/{cname}.dill")
 # %%
