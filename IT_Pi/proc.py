@@ -3,6 +3,7 @@ import numpy as np
 from numpy.linalg import matrix_rank
 import random
 from .IT_PI import calc_basis
+from .funcs import norme, return_enew
 
 # Create as abstract class so that error is raised if properties/methods are not defined
 # by subclass
@@ -46,3 +47,19 @@ class ITPi_data(ABC):
         X, Y, _ = self.get_data(vars)
         rind = random.sample(range(X.shape[0]), Nvalid)
         return X[rind], Y[rind]
+
+def get_exp(ITPi_r:dict|str, D_in:np.matrix|np.ndarray, Vars:list[str]|tuple[str]=None, exp_thresh:float=0.01):
+    if isinstance(ITPi_r,str):
+        ITPi_r = np.load(ITPi_r, allow_pickle=True)
+    # Normalize exponents and remove small terms (adjusting rest to preserve
+    # non-dimensionality)
+    eorig = norme(ITPi_r['input_coef'], 5)
+    e = np.zeros_like(eorig)
+    if Vars is not None:
+        # flip eorig so dPe ~ 0 is always the first vector 
+        # - SH: I think this is just so first Pi group doesn't have dPe?
+        eorig = np.roll(eorig, eorig[:, Vars.index('dPe')].argmin(), axis=0)
+    for k, e_ in enumerate(eorig):
+        inds = np.where(np.abs(eorig[k]) < exp_thresh)[0]
+        e[k] = return_enew(np.array(D_in), e_, inds)
+    return np.array(e)

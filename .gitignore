@@ -1,6 +1,6 @@
 .vscode/
 __pycache__/
-npzs/
+npzs*/
 
 .DS_Store
 filepaths.py
