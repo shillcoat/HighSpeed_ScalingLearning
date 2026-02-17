@@ -176,12 +176,16 @@ for c in cases:
 
     dbCase.Tr = dbCase.Tinf_F * (1 + 0.89*(dbCase.gamma-1.0)/2.0*dbCase.Minf**2)
 
-    # Get visual thickness (again using Favre average cause that's all I have)
-    id99 = np.zeros([nx],dtype=np.int64)
-    for j in range(ny):
-        id99 += dbCase.u_F[:,j] < 0.99*dbCase.uinf_F
-    id99 = np.transpose(np.array(list(zip(range(nx),id99))))
-    dbCase.delta99 = dbCase.y[*id99]
+    # Get BL thicknesses (again using Favre average cause that's all I have)
+    dbCase.u = dbCase.u_F; dbCase.uinf = dbCase.uinf_F # Temporarily write these in for calculations
+    dbCase.delta99, _ = dbCase.find_edge()
+    dbCase.delta1, _ = dbCase.find_edge('delta1')
+    dbCase.delta1k, _ = dbCase.find_edge('delta1k')
+    dbCase.delta2, _ = dbCase.find_edge('delta2')
+    dbCase.delta2k, _ = dbCase.find_edge('delta2k')
+    dbCase.H = dbCase.delta1/dbCase.delta2
+    dbCase.u = None; dbCase.uinf = None  # Clear these out as they are not actually the Reynolds-averaged values
+
     # Friction Reynolds numbers
     dbCase.Retau = dbCase.delta99 / dbCase.deltaplus
     # dbCase.Retaustar = dbCase.delta99 / dbCase.deltastar[*id99]
@@ -191,21 +195,21 @@ for c in cases:
     dbCase.Retaustar = dbCase.delta99 / dbCase.deltastar[:,-1]
 
     # Other BL thicknesses and corresponding parameters
-    I1 = 1-(dbCase.rho*dbCase.u_F)/np.transpose([(dbCase.rhoinf*dbCase.uinf_F)])
-    I1k = 1-dbCase.u_F/np.transpose([dbCase.uinf_F])
-    I2 = (dbCase.rho*dbCase.u_F)/np.transpose([(dbCase.rhoinf*dbCase.uinf_F)])*(1-dbCase.u_F/np.transpose([dbCase.uinf_F]))
-    dbCase.delta1 = np.zeros([nx])
-    dbCase.delta1k = np.zeros([nx])
-    dbCase.delta2 = np.zeros([nx])
-    dbCase.H = np.zeros([nx])
-    # Pe = np.zeros([nx])
-    for xi in range(nx):
-        y = dbCase.y[xi,:id99[1,xi]]
-        dbCase.delta1[xi] = np.trapezoid(I1[xi,:id99[1,xi]],y)
-        dbCase.delta1k[xi] = np.trapezoid(I1k[xi,:id99[1,xi]],y)
-        dbCase.delta2[xi] = np.trapezoid(I2[xi,:id99[1,xi]],y)
-        # Pe[xi] = dbCase.P_F[xi,id99[1,xi]]
-    dbCase.H = dbCase.delta1/dbCase.delta2
+    # I1 = 1-(dbCase.rho*dbCase.u_F)/np.transpose([(dbCase.rhoinf*dbCase.uinf_F)])
+    # I1k = 1-dbCase.u_F/np.transpose([dbCase.uinf_F])
+    # I2 = (dbCase.rho*dbCase.u_F)/np.transpose([(dbCase.rhoinf*dbCase.uinf_F)])*(1-dbCase.u_F/np.transpose([dbCase.uinf_F]))
+    # dbCase.delta1 = np.zeros([nx])
+    # dbCase.delta1k = np.zeros([nx])
+    # dbCase.delta2 = np.zeros([nx])
+    # dbCase.H = np.zeros([nx])
+    # # Pe = np.zeros([nx])
+    # for xi in range(nx):
+    #     y = dbCase.y[xi,:id99[1,xi]]
+    #     dbCase.delta1[xi] = np.trapezoid(I1[xi,:id99[1,xi]],y)
+    #     dbCase.delta1k[xi] = np.trapezoid(I1k[xi,:id99[1,xi]],y)
+    #     dbCase.delta2[xi] = np.trapezoid(I2[xi,:id99[1,xi]],y)
+    #     # Pe[xi] = dbCase.P_F[xi,id99[1,xi]]
+    # dbCase.H = dbCase.delta1/dbCase.delta2
     dbCase.Redelta99 = dbCase.rhoinf*dbCase.uinf_F*dbCase.delta99/dbCase.muinf_F
     dbCase.Redelta1 = dbCase.rhoinf*dbCase.uinf_F*dbCase.delta1/dbCase.muinf_F
     dbCase.Redelta2 = dbCase.rhoinf*dbCase.uinf_F*dbCase.delta2/dbCase.muw

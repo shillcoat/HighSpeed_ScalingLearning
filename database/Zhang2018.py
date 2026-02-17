@@ -16,11 +16,13 @@ from glob import glob
 
 from db_config import BL, save_case
 from filepaths import Zhang2018_path  # This file is not kept in repo
+from prop_checks import check_edges
 
 # %% Fetch and iterate through cases
 cases = glob(Zhang2018_path + "/*_Stat.dat")
 header_size = 142
 for c in cases:
+    cname = c.split('/')[-1][:-9]
     dbCase = BL('si', incomp=0, chem=0, gamma=1.4, Pr=0.71, Bk=0)
     if "M8Tw048" in c:  # Case with nitrogen as working fluid
          dbCase.R = 297.0
@@ -96,4 +98,6 @@ for c in cases:
     dbCase.Cf = 2*dbCase.tauw/(dbCase.rhoinf + dbCase.uinf**2)
 
     save_case(dbCase, c[:-9] + ".dill")
+    print(f"Saved case {cname} to database")
+    check_edges(dbCase,title=cname)
 # %%

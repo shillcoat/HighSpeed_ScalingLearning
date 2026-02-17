@@ -14,6 +14,7 @@ from glob import glob
 
 from db_config import BL, save_case
 from filepaths import Wenzel2019_path  # This file is not kept in repo
+from prop_checks import check_edges
 
 # %% Fetch and iterate through cases
 cases = glob(Wenzel2019_path + "/data.npy/*.npy")
@@ -80,6 +81,8 @@ for c in cases:
     dbCase.H = dat['boundaryLayerThicknesses']['H12']
     dbCase.delta1k = dat['boundaryLayerThicknesses']['delta1Inc']
 
+    # These are called "edge" values but when plotting the mean data they more
+    # seem to correspond to the freestream values: possibly revisit this later
     dbCase.uinf = dat['boundaryLayerEdgeValues']['U_edge']
     dbCase.rhoinf = dat['boundaryLayerEdgeValues']['rho_edge']
     dbCase.Pinf = dat['boundaryLayerEdgeValues']['p_edge']
@@ -117,4 +120,6 @@ for c in cases:
     dbCase.yplus = dbCase.y/np.transpose([dbCase.deltaplus])
 
     save_case(dbCase, Wenzel2019_path + f"/{cname}.dill")
+    print(f"Saved case {cname} to database")
+    check_edges(dbCase,title=cname)
 # %%

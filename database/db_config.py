@@ -1,6 +1,7 @@
 import dill
 import numpy as np
 from warnings import warn
+from scipy.integrate import simpson
 
 __all__ = ['load_case',
            'Case',
@@ -35,22 +36,7 @@ class Case:
     meets database format)
     """
 
-    # List of all parameters with description
-    gen_params = {
-        # Geometry
-        "x": "Raw streamwise coordinate",
-        "y": "Raw wall-normal coordinate",
-        "z": "Raw spanwise coordinate",
-
-        # Flags/bookkeeping
-        "incomp": "Flag for incompressible cases",
-        "chem": "Flag for chemically-reacting cases",
-        "mu_law": "Function handle for viscosity law",
-
-        # Working fluid properties
-        "R": "Gas constant",
-        "gamma": "Specific heat ratio",
-
+    field_params = {
         # Reynolds-averaged mean quantities
         "u": "Reynolds-averaged mean streamwise velocity",
         "v": "Reynolds-averaged mean wall-normal velocity",
@@ -101,7 +87,22 @@ class Case:
         "rTppTpp": "<rho T''T''>",
         "ruppTpp": "<rho u''T''>",
         "rvppTpp": "<rho v''T''>",
-        "rwppTpp": "<rho w''T''>",
+        "rwppTpp": "<rho w''T''>"
+    }
+    oneD_params = {
+        # Geometry
+        "x": "Raw streamwise coordinate",
+        "y": "Raw wall-normal coordinate",
+        "z": "Raw spanwise coordinate",
+
+        # Flags/bookkeeping
+        "incomp": "Flag for incompressible cases",
+        "chem": "Flag for chemically-reacting cases",
+        "mu_law": "Function handle for viscosity law",
+
+        # Working fluid properties
+        "R": "Gas constant",
+        "gamma": "Specific heat ratio",
 
         # Wall quantities
         "rhow": "Wall density",
@@ -128,7 +129,18 @@ class Case:
         "Retau": "Friction Reynolds number",
         "Retaustar": "Semi-local friction Reynolds number",
     }
+    
+    # List of all parameters with description
+    gen_params = oneD_params | field_params
     __frozen = 0
+
+    @staticmethod
+    def whatis(p):
+        # Return description for parameter p
+        if p in Case.gen_params.keys():
+            print(Case.gen_params[p])
+        else:
+            warn("%r is not a valid case parameter" % p)
 
     def __init__(self, case_type:str, units:str, **params):
         self.case_type = str.lower(case_type)
@@ -149,10 +161,23 @@ class Case:
 
     def __setattr__(self, key, value):
         # Override setattr to support freezing of attributes
+        # Ensure that all attributes are stored as numpy arrays for consistency, 
+        # but allow scalars to be input for convenience
         if self.__frozen and not hasattr(self, key):
             raise AttributeError("%r is frozen: cannot add additional members after " \
             "initialization" % self)
-        super().__setattr__(key, value)
+        if value is not None:  # Some input cleaning/pre-processing for consistency
+            scalar_check = np.isscalar(value) and not isinstance(value, str|bool)
+            try: # Handling of numpy 0d arrays (super annoying that these exist...)
+                if not value.ndim and isinstance(value, np.ndarray): value = value[np.newaxis]
+            except AttributeError:
+                pass
+            if key in Case.field_params.keys() and value.ndim < 2:
+                # Ensure the field parameters are always at least 2D for consistency 
+                # (even if only one point in x direction)
+                value = value[np.newaxis, :]
+            super().__setattr__(key, np.array([value]) if scalar_check else value)
+        else: super().__setattr__(key, value)
 
     def _freeze(self):
         # Freeze object so can't add new attributes
@@ -161,13 +186,6 @@ class Case:
     def _unfreeze(self):
         # Unfreeze object so can add new attributes: should never need to use!
         self.__frozen = 0
-
-    def whatis(p):
-        # Return description for parameter p
-        if p in Case.gen_params.keys():
-            print(Case.gen_params[p])
-        else:
-            warn("%r is not a valid case parameter" % p)
 
     def hasdata(self, p=None):
         # If no parameters p given, returns a list of parameters containing data.
@@ -202,11 +220,11 @@ class Case:
             elif label.upper() == "TL":
                 # Trettel & Larsson
                 if len(self.y.shape) == 1:
-                    f = np.gradient(self.y*np.sqrt(rhop)/mup,self.y,axis=-1)
+                    f = np.gradient(self.y*np.sqrt(rhop)/mup,self.y,axis=-1,edge_order=2)
                 else:
                     f = np.zeros(self.u.shape)
                     for xi in range(self.u.shape[0]):
-                        f[xi] = np.gradient(self.y[xi]*np.sqrt(rhop[xi])/mup[xi],self.y[xi],axis=-1)
+                        f[xi] = np.gradient(self.y[xi]*np.sqrt(rhop[xi])/mup[xi],self.y[xi],axis=-1,edge_order=2)
                 g = mup * f
             elif label.upper() == "V":
                 # Volpiani et al.
@@ -217,20 +235,20 @@ class Case:
                 if not all(self.hasdata(['uTL', 'yTL'])):
                     _ = self.vel_transform(label="TL")
                 if len(self.y.shape) == 1:
-                    f = np.gradient(self.y*np.sqrt(rhop)/mup,self.y,axis=-1)
+                    f = np.gradient(self.y*np.sqrt(rhop)/mup,self.y,axis=-1,edge_order=2)
                 else:
                     f = np.zeros(self.u.shape)
                     for xi in range(self.u.shape[0]):
-                        f[xi] = np.gradient(self.y[xi]*np.sqrt(rhop[xi])/mup[xi],self.y[xi],axis=-1)
+                        f[xi] = np.gradient(self.y[xi]*np.sqrt(rhop[xi])/mup[xi],self.y[xi],axis=-1,edge_order=2)
                 if ndim > 1:
                     Seq, Stl = np.zeros(self.u.shape), np.zeros(self.u.shape)
                     # Unfortuntely np.gradient doesn't support multi-dim spacing specs so have to do this to support 2D data
                     for i in range(len(self.x)):
-                        Seq[i,:] = np.gradient(self.uplus[i,:],self.yplusTL[i,:],axis=-1)/mup[i,:]
-                        Stl[i,:] = np.gradient(self.uplusTL[i,:],self.yplusTL[i,:],axis=-1)
+                        Seq[i,:] = np.gradient(self.uplus[i,:],self.yplusTL[i,:],axis=-1,edge_order=2)/mup[i,:]
+                        Stl[i,:] = np.gradient(self.uplusTL[i,:],self.yplusTL[i,:],axis=-1,edge_order=2)
                 else:
-                    Seq = np.gradient(self.uplus,self.yplusTL,axis=-1)/mup
-                    Stl = np.gradient(self.uplusTL,self.yplusTL,axis=-1)
+                    Seq = np.gradient(self.uplus,self.yplusTL,axis=-1,edge_order=2)/mup
+                    Stl = np.gradient(self.uplusTL,self.yplusTL,axis=-1,edge_order=2)
                 # tauv = self.mu*np.gradient(self.u,self.y)
                 # tauR = -self.ruppvpp
                 # tp = (tauv+tauR)/self.tauw
@@ -281,9 +299,10 @@ class BL(Case):
         'delta1': 'Displacement thickness',
         'delta1k': 'Kinematic displacement thickness',
         'delta2': 'Momentum thickness (often written as theta)',
+        'delta2k': 'Kinematic momentum thickness',
         'H': 'Shape factor',
 
-        # Edge/free-stream quantities
+        # Free-stream quantities
         "uinf": "Reynolds-averaged mean free-stream velocity",
         "ainf": "Reynolds-averaged mean free-stream speed of sound",
         "Minf": "Reynolds-averaged mean free-stream Mach number",
@@ -296,6 +315,20 @@ class BL(Case):
         "Pinf_F": "Favre-averaged mean free-stream pressure",
         "Tinf_F": "Favre-averaged mean free-stream temperature",
         "muinf_F": "Favre-averaged mean free-stream dynamic viscosity",
+
+        # Edge quantities
+        "ue": "Reynolds-averaged mean edge velocity",
+        "ae": "Reynolds-averaged mean edge speed of sound",
+        "Me": "Reynolds-averaged mean edge Mach number",
+        "rhoe": "Reynolds-averaged mean edge density",
+        "Pe": "Reynolds-averaged mean edge pressure",
+        "Te": "Reynolds-averaged mean edge temperature",
+        "mue": "Reynolds-averaged mean edge dynamic viscosity",
+        "ue_F": "Favre-averaged mean edge velocity",
+        "rhoe_F": "Favre-averaged mean edge density",
+        "Pe_F": "Favre-averaged mean edge pressure",
+        "Te_F": "Favre-averaged mean edge temperature",
+        "mue_F": "Favre-averaged mean edge dynamic viscosity",
 
         # Other quantities
         'Tr': 'Recovery temperature',
@@ -340,6 +373,120 @@ class BL(Case):
         r.append(super().hasdata(p))
         if len(r) == 1: return r[0] 
         else: return r
+
+    def find_edge(self, edge_type='delta99'):
+        # TODO: Currently sometimes slightly underestimates values of delta1, delta2 
+        # compared to those reported... unsure why or if it matters?
+        if self.u.ndim > 1:
+            nx, ny = self.u.shape
+        else:
+            nx, ny = 1, self.u.shape[0]
+        if edge_type != 'delta99':
+            if not self.hasdata('delta99'):
+                self.delta99, _ = self.find_edge('delta99')
+            id99 = np.argmin(np.abs(self.y[np.newaxis,:] - self.delta99[:,np.newaxis]),axis=-1)
+            if id99.ndim > 1: id99 = id99.squeeze()
+        
+        match edge_type:
+            case 'delta99':
+                # This is best way I could come up with to do this efficiently for 2D arrays
+                tmp = np.diff(self.u<=0.99*self.uinf[:,np.newaxis])
+                ide = np.argmax(tmp,axis=-1) # First occurence of crossing 0.99uinf
+                # Check either side to choose what is closer to 0.99uinf
+                ide0 = np.transpose(np.array(list(zip(range(nx),ide))))
+                ide1 = np.transpose(np.array(list(zip(range(nx),ide+1))))
+                u0 = self.u[*ide0]; u1 = self.u[*ide1]
+
+                uu = np.concatenate([u0[:,np.newaxis], u1[:,np.newaxis]], axis=1)
+                idei = np.argmin(np.abs(uu - 0.99*self.uinf[:,np.newaxis]), axis=1)
+                ide = ide + idei
+
+                if self.y.ndim > 1:
+                    # When there are different y values for different x locations (curved walls)
+                    id99 = np.transpose(np.array(list(zip(range(nx),ide))))
+                    d = self.y[*id99]
+                else:
+                    d = self.y[ide]
+                return d, ide
+            
+            case 'deltainf':
+                # Not a true BL thickness, but a standardized location to get true freestream values
+                # TODO: This is me just kind of choosing something... maybe there is a better way?
+                ide = id99 + (ny-id99)//2
+                if self.y.ndim > 1:
+                    # When there are different y values for different x locations (curved walls)
+                    idee = np.transpose(np.array(list(zip(range(nx),ide))))
+                    d = self.y[*idee]
+                else:
+                    d = self.y[ide]
+                return d, ide
+            
+            case 'delta99GFM':
+                # Boundary layer thickness based on Griffin, Fu, Moin definition for
+                # nonequilibrium flows
+                # As best as I can tell this is implemented correctly?
+                # Reference values are freestream: appears to be roughly insensitive to particular choice
+                idinf = id99 + (ny-id99)//2
+                idinf = np.transpose(np.array(list(zip(range(nx),idinf))))
+                
+                Umref2 = self.u[*idinf]**2 + self.v[*idinf]**2
+                Pref = self.P[*idinf]
+                rhoref = self.rho[*idinf]
+                for varref in [Umref2, Pref, rhoref]:
+                    if not varref.ndim: varref = varref[np.newaxis]
+                
+                UI2 = 2.0*self.gamma/(self.gamma-1)*((Pref/rhoref)[:,np.newaxis] - self.P/self.rho)
+                UI2 += Umref2[:,np.newaxis] - self.v**2
+
+                # Find delta based on condition (similar to delta99)
+                tmp = np.diff(self.u**2 <= (0.99**2)*UI2)
+                ide = np.argmax(tmp,axis=-1) # First occurence of crossing condition
+                # Check either side to choose what is closer to condition
+                ide0 = np.transpose(np.array(list(zip(range(nx),ide))))
+                ide1 = np.transpose(np.array(list(zip(range(nx),ide+1))))
+                u0 = self.u[*ide0]; u1 = self.u[*ide1]
+                U1 = UI2[*ide0]; U2 = UI2[*ide1]
+
+                uu = np.concatenate([u0[:,np.newaxis], u1[:,np.newaxis]], axis=1)
+                UU = np.concatenate([U1[:,np.newaxis], U2[:,np.newaxis]], axis=1)
+                idei = np.argmin(np.abs(uu**2 - (0.99**2)*UU), axis=1)
+                ide = ide + idei
+
+                if self.y.ndim > 1:
+                    # When there are different y values for different x locations (curved walls)
+                    id99 = np.transpose(np.array(list(zip(range(nx),ide))))
+                    d = self.y[*id99]
+                else:
+                    d = self.y[ide]
+                return d, ide
+            
+            case 'delta1':
+                I = 1-(self.rho*self.u)/np.transpose([(self.rhoinf*self.uinf)])
+            
+            case 'delta1k':
+                I = 1-self.u/np.transpose([self.uinf])
+            
+            case 'delta2':
+                I = (self.rho*self.u)/np.transpose([(self.rhoinf*self.uinf)])
+                I *= (1-self.u/np.transpose([self.uinf]))
+            
+            case 'delta2k':
+                I = self.u/np.transpose([self.uinf])
+                I *= (1-self.u/np.transpose([self.uinf]))
+            
+            case _:
+                raise ValueError(f"Unknown edge type: {edge_type}")
+        
+        I = I.squeeze()
+        if nx > 1:
+            d = np.zeros([nx])
+            for i in range(nx):
+                s = np.s_[i,:id99[i]+1] if self.y.ndim > 1 else np.s_[:id99[i]+1]
+                d[i] = simpson(I[i,:id99[i]+1], self.y[s])
+        else:
+            d = np.array([simpson(I[:id99[0]+1], self.y[:id99[0]+1])])
+        ide = np.argmin(np.abs(self.y[np.newaxis,:] - d[:,np.newaxis]),axis=-1)
+        return d, ide
 
 
 class Channel(Case):

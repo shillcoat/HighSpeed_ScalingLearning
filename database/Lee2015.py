@@ -26,7 +26,7 @@ for c in cases:
     with open(c,'r') as f:
         for i, line in enumerate(f):
             if i == 38:
-                dbCase.nu = float(line[1:].split()[4])
+                nu = float(line[1:].split()[4])
             if i == 39:
                 dbCase.h = float(line[1:].split()[5])
             if i == 41:
@@ -38,6 +38,7 @@ for c in cases:
     dat = np.loadtxt(c, skiprows=header_size)
 
     dbCase.y = dbCase.h * dat[:,0]
+    dbCase.nu = np.ones_like(dbCase.y) * nu
     dbCase.yplus = dat[:,1]
     dbCase.uplus = dat[:,2]
 

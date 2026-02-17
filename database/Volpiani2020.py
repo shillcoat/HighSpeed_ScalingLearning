@@ -71,7 +71,7 @@ for c in cases:
     dbCase.w_F = avg[:,:,12]
     dbCase.T_F = avg[:,:,13]
     dbCase.mu_F = dbCase.mu_law(dbCase.T_F)
-    dbCase.R = np.mean(np.mean(dbCase.P/dbCase.rho/dbCase.T_F))
+    dbCase.R = np.mean(dbCase.P/dbCase.rho/dbCase.T_F)
     dbCase.a = np.sqrt(dbCase.gamma*dbCase.R*dbCase.T)
     dbCase.M = dbCase.u / dbCase.a
     dbCase.Minf = dbCase.uinf / np.mean(dbCase.a[:,-1])
@@ -113,10 +113,7 @@ for c in cases:
     dbCase.Bq = dbCase.qw/(dbCase.rhow*cp*dbCase.utau*dbCase.Tw)
 
     # Get visual thickness
-    id99 = np.zeros([nx],dtype=np.int64)
-    for j in range(ny):
-        id99 += dbCase.u[:,j] < 0.99*dbCase.uinf
-    dbCase.delta99 = dbCase.y[id99]
+    dbCase.delta99, id99 = dbCase.find_edge()
     # Friction Reynolds numbers
     dbCase.Retau = dbCase.delta99 / dbCase.deltaplus
     id99 = np.transpose(np.array(list(zip(range(nx),id99))))
