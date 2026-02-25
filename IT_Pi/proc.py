@@ -63,3 +63,18 @@ def get_exp(ITPi_r:dict|str, D_in:np.matrix|np.ndarray, Vars:list[str]|tuple[str
         inds = np.where(np.abs(eorig[k]) < exp_thresh)[0]
         e[k] = return_enew(np.array(D_in), e_, inds)
     return np.array(e)
+
+def pretty_exps(e:np.ndarray, varlbls:list[str]|tuple[str], prnt:bool=False):
+    labels = []
+    for e_ in e:
+        num, den = "", ""
+        for var, exp in zip(varlbls, e_):
+            if exp < 0:
+                den += f"{var}^{{{-exp:.3f}}}"
+            elif exp > 0:
+                num += f"{var}^{{{exp:.3f}}}"
+        if num == "": num = "1"
+        if den == "": labels.append(f"${num}$")
+        else: labels.append(f"$\\frac{{{num}}}{{{den}}}$")
+        if prnt: print(labels[-1])
+    return labels
