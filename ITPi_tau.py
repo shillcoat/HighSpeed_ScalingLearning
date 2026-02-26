@@ -24,6 +24,8 @@ Vars = config['Vars'] # Variables to consider
 Varlbls = config['Varlbls'] # LaTeX variable labels for plotting, in same order as Vars
 output_path = config['output_path']
 exp_thresh = config['exp_threshold'] # Threshold for setting exponent to zero
+train_ratio = config['train_ratio']  # Ratio of data to use for training
+bl_edge = config['bl_edgetype'] # Criterion for identifying boundary layer edge (e.g. 'delta99', 'delta1k')
 
 # %% Load in data and preprocess
 
@@ -37,34 +39,67 @@ X = np.delete(GonzaloDat['X'],-2,axis=1)
 X = np.hstack((X, [1, 1]*np.ones((npoints,2)), X[:,4][:,np.newaxis]))
 
 # Build data object
-# dat = tau_data(X, PiY)
+dat = tau_data(X, PiY)
 # Try just compressible data to see what happens:
-dat = tau_data()
+# dat = tau_data()
 ivars = [dat._vars_all.index(x) for x in Vars]
 
-# Get Wenzel data
 cases = []
+
+# Wenzel data
 for cs in glob(f"{fpaths.Wenzel2019_path}/*.dill"):
     c = db.load_case(cs)
 
     # Extract edge values based on chosen criterion
     nx, ny = c.u.shape
-    c.delta99, ide = c.find_edge('delta99')
+    c.delta99, ide = c.find_edge(bl_edge)
     ide = np.transpose(np.array(list(zip(range(nx),ide))))
     c.ue = c.u[*ide]
     c.mue = c.mu[*ide]
     c.rhoe = c.rho[*ide]
-    c.ae = c.a[*ide]
 
     cases.append(c)
+
+# Volpiani data
+for cs in glob(f"{fpaths.Volpiani2020_path}/*.dill"):
+    c = db.load_case(cs)
+
+    # Extract edge values based on chosen criterion
+    nx, ny = c.u.shape
+    c.delta99, ide = c.find_edge(bl_edge)
+    ide = np.transpose(np.array(list(zip(range(nx),ide))))
+    c.ue = c.u[*ide]
+    c.mue = c.mu[*ide]
+    c.rhoe = c.rho[*ide]
+    c.muw = c.muw * np.ones_like(c.x)
+
+    cases.append(c)
+
+# Larsson data: I'm a little unsure about including this bc reconstruction was severe
+# Also may overwhelm Wenzel data (only compressible data with actual PG)
+for cs in glob(f"{fpaths.LarssonGroupBL_path}/*.dill"):
+    c = db.load_case(cs)
+
+    # Data is very limited for this dataset: use what we have
+    c.ue = np.ones_like(c.x)
+    c.mue = c.muinf * np.ones_like(c.x)
+    c.rhoe = c.rhoinf
+    c.muw = c.muw * np.ones_like(c.x)
+    c.P = np.zeros_like(c.x) # Just give it something random so assertion doesn't throw error. Isn't used
+
+    cases.append(c)
+
 _ = dat.extract_vars(cases)
+
+# Split data between training and validation sets
+traindat, validdat = dat.split_train_valid(train_ratio)
 
 # %% Run IT_Pi
 if __name__ == "__main__":  # Necessary for parallelization
     for k in range(Nk):
         print(f'Iteration = {k+1}')
         for num_input in (1, 2):
-            X, Y, basis_matrices = dat.get_traindata(Vars, Ntrain=Ntrain)
+            X, Y, basis_matrices = traindat.get_data(Vars, Npts=Ntrain)
 
             results = IT_Pi.run(
                 X, Y,
@@ -106,7 +141,7 @@ if __name__ == "__main__":  # Necessary for parallelization
     fig.savefig(f'{output_path}/tau_ITPI_{"_".join(Vars)}_Ni{Ni}_exp.pdf')
 
     # Plot Pi groups against each other
-    X, PiY, _ = dat.get_data(Vars)
+    X, PiY, _ = dat.get_vars(Vars)
     # Ni = 1
     PiX = np.array([IT_Pi.getPiIfromXe(X, e_.squeeze()) for e_ in e[0]])
     # Me = X[:,0]/X[:,-1]

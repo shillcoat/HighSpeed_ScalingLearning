@@ -32,21 +32,23 @@ class ITPi_data(ABC):
         self._X = np.vstack((self._X, X_new))
         self._Y = np.vstack((self._Y, Y_new))
 
-    def get_data(self, vars:list):
+    def get_vars(self, vars:list):
         ii = [self._vars_all.index(x) for x in vars]
         return self._X[:, ii], self._Y, self._D_in[:, ii]
     
-    def get_traindata(self, vars:list, Ntrain:int = 2000):
-        X, Y, D_in = self.get_data(vars)
-        rind = random.sample(range(X.shape[0]), Ntrain)
+    def get_data(self, vars:list, Npts:int = 2000):
+        X, Y, D_in = self.get_vars(vars)
+        rind = random.sample(range(X.shape[0]), Npts)
         num_basis = D_in.shape[1] - matrix_rank(D_in)
         basis_matrices = calc_basis(D_in, num_basis)
         return X[rind], Y[rind], basis_matrices
-
-    def get_validdata(self, vars:list, Nvalid:int = 2000):
-        X, Y, _ = self.get_data(vars)
-        rind = random.sample(range(X.shape[0]), Nvalid)
-        return X[rind], Y[rind]
+    
+    def split_train_valid(self, train_ratio:float = 0.8):
+        rind = np.random.random(self._X.shape[0]) < train_ratio
+        myclass = type(self)
+        train_data = myclass(X=self._X[rind], Y=self._Y[rind])
+        valid_data = myclass(X=self._X[~rind], Y=self._Y[~rind])
+        return train_data, valid_data
 
 def get_exp(ITPi_r:dict|str, D_in:np.matrix|np.ndarray, Vars:list[str]|tuple[str]=None, exp_thresh:float=0.01):
     if isinstance(ITPi_r,str):
