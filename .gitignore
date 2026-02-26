@@ -2,6 +2,7 @@
 __pycache__/
 npzs*/
 scratch/
+inputfiles/
 
 .DS_Store
 filepaths.py

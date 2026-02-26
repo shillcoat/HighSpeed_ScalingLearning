@@ -2,6 +2,7 @@
 import numpy as np
 import IT_Pi
 from glob import glob
+import tomllib
 
 import matplotlib.pyplot as plt
 from matplotlib import cm, colors, rcParams
@@ -13,17 +14,16 @@ gonzalo_taudata = fpaths.db_path + "/../GonzaloData/tau_data.npz"
 
 from ITPi_classes import tau_data
 
-# %% Script settings/inputs
-Nk = 10  # Number of times to repeat the training
-Njobs = -1  # Number of parallel jobs (-1 for all cores)
-Ntrain = int(5e3)  # Number of training points
-Vars = ['Ue', 'd1', 'rhoe', 'd2', 'mue', 'dPe', 'muw', 'rhow']  # Variables to consider when building Pi groups.
-# LaTeX labels for variables (in same order as Vars)
-Varlbls = [r"U_e", r"\delta_1", r"\rho_e", r"\delta_2", r"\mu_e", r"dP_e", r"\mu_w", r"\rho_w"]
-# Note the order of Vars DOES matter in so much as first k must contain all dimensions, where k is the
-# number of distinct dimensions (due to way calc_basis function works)
-output_path = "./npzs_comp"
-exp_thresh = 0.01  # Threshold for setting an exponent to 0
+# %% Script settings/inputs: read from toml config file
+with open("inputfiles/ITPi_tau.toml", "rb") as f:
+    config = tomllib.load(f)
+Nk = config['N_training'] # Number of times to repeat the training
+Njobs = config['N_jobs'] # Number of parallel jobs (-1 for all cores)
+Ntrain = config['N_points'] # Number of data points to use for training
+Vars = config['Vars'] # Variables to consider
+Varlbls = config['Varlbls'] # LaTeX variable labels for plotting, in same order as Vars
+output_path = config['output_path']
+exp_thresh = config['exp_threshold'] # Threshold for setting exponent to zero
 
 # %% Load in data and preprocess
 
