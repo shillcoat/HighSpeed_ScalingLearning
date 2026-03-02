@@ -4,5 +4,7 @@ npzs*/
 scratch/
 inputfiles/
 
+*.log
+
 .DS_Store
 filepaths.py

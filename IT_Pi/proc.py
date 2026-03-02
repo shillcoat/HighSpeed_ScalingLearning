@@ -28,6 +28,9 @@ class ITPi_data(ABC):
             self._X = np.zeros((0, self._lvars))
             self._Y = np.zeros((0, 1))
 
+    def __len__(self):
+        return self._X.shape[0]
+
     def append_data(self, X_new:np.ndarray, Y_new:np.ndarray):
         self._X = np.vstack((self._X, X_new))
         self._Y = np.vstack((self._Y, Y_new))
@@ -71,6 +74,7 @@ def pretty_exps(e:np.ndarray, varlbls:list[str]|tuple[str], prnt:bool=False):
     for e_ in e:
         num, den = "", ""
         for var, exp in zip(varlbls, e_):
+            if '$' in var: var = var.replace('$','')
             if exp < 0:
                 den += f"{var}^{{{-exp:.3f}}}"
             elif exp > 0:
