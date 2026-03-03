@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 from matplotlib import cm, colors
 import IT_Pi
 import numpy as np
-from ITPi_classes import tau_data
 
 __all__ = [
     "plt_exps",
@@ -11,15 +10,15 @@ __all__ = [
 ]
 lstyles = ['-', '--', ':', '-.']
 
-def plt_exps(npzs, Ni, Vars, Varlbls=None, ax=None, exp_thresh=0.01):
+def plt_exps(npzs, Ni, dat_obj, Vars, Varlbls=None, ax=None, exp_thresh=0.01):
     if ax is None:
         fig, ax = plt.subplots(figsize=(6,5), layout='constrained')
     else: fig = ax.get_figure()
-    ivars = [tau_data._vars_all.index(x) for x in Vars]
+    ivars = [dat_obj._vars_all.index(x) for x in Vars]
     if Varlbls is None:
         Varlbls = Vars
 
-    e = np.array([IT_Pi.get_exp(npz,tau_data._D_in[:,ivars],Vars,exp_thresh) for npz in npzs])
+    e = np.array([IT_Pi.get_exp(npz,dat_obj._D_in[:,ivars],Vars,exp_thresh) for npz in npzs])
     MI = np.array([np.load(npz,allow_pickle=True)['optimized_MI'] for npz in npzs])
     Cmin, Cmax = np.min(MI), np.max(MI)
     

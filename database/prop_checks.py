@@ -14,16 +14,16 @@ matplotlib.rcParams.update(plt_template)
 import db_config as db
 import filepaths as fpath
 
-def check_edges(dat:db.BL, edges:list[str]=None, title:str=None):
+def check_edges(dat:db.BL, edges:list[str]=None, sigma_smooth:list[float]|str=None,title:str=None,interp:bool=True):
     if edges is None:
         edges = ['delta99', 'delta1', 'delta2', 'delta1k', 'delta2k']
     for e in edges:
         if dat.hasdata(e):
             dval = getattr(dat, e)
-            dcalc, _ = dat.find_edge(e)
+            dcalc, _ = dat.find_edge(e, sigma_smooth=sigma_smooth, interp=interp)
             plt.figure()
-            plt.scatter(dat.x, dval, label='Precomputed', marker='.')
-            plt.scatter(dat.x, dcalc, label='Calculated', marker='.')
+            plt.scatter(dat.x, dval, label='Precomputed', marker='.', s=2)
+            plt.scatter(dat.x, dcalc, label='Calculated', marker='.', s=2)
             plt.legend()
             plt.xlabel('x')
             plt.ylabel(e)
@@ -35,8 +35,9 @@ def check_edges(dat:db.BL, edges:list[str]=None, title:str=None):
 # %% Run
 if __name__ == "__main__":
     # Select case to run on
-    cases = glob(f"{fpath.Wenzel2019_path}/*.dill")
-    c = cases[-4]
+    cases = glob(f"{fpath.Volpiani2020_path}/*.dill")
+    c = cases[1]
+    print(c.split('/')[-1])
 
     # Compute a bunch of BL thicknesses
     dat = db.load_case(c)
@@ -47,17 +48,20 @@ if __name__ == "__main__":
     else:
         nx, ny = 1, dat.u.shape[0]
 
-    d99, id99 = dat.find_edge('delta99')
-    dinf, idinf = dat.find_edge('deltainf')
-    d1, id1 = dat.find_edge('delta1')
-    d1k, id1k = dat.find_edge('delta1k')
-    d2, id2 = dat.find_edge('delta2')
-    d2k, id2k = dat.find_edge('delta2k')
+    dx = np.mean(np.diff(dat.x)) if nx > 1 else 1
+    ssmooth = [8, 2] # Helpful smoothing kernel for Volpiani
+
+    d99, id99 = dat.find_edge('delta99', sigma_smooth=ssmooth)
+    dinf, idinf = dat.find_edge('deltainf', sigma_smooth=ssmooth)
+    d1, id1 = dat.find_edge('delta1', sigma_smooth=ssmooth)
+    d1k, id1k = dat.find_edge('delta1k', sigma_smooth=ssmooth)
+    d2, id2 = dat.find_edge('delta2', sigma_smooth=ssmooth)
+    d2k, id2k = dat.find_edge('delta2k', sigma_smooth=ssmooth)
 
     d99GFM, id99GFM = dat.find_edge('delta99GFM')
 
     # Check BL thickness calculations vs precomputed values (if available)
-    check_edges(dat)
+    check_edges(dat, sigma_smooth=ssmooth)
 
     # Plot some properties midway through the domain (streamwise)
     for prop in ['u','rho','P','T']:
@@ -65,7 +69,9 @@ if __name__ == "__main__":
         p = getattr(dat,prop)
         p = p[i] if p.ndim > 1 else p
         pinf = getattr(dat,prop+'inf')
-        pinf = pinf[i] if nx > 1 else pinf
+        if pinf is None:
+            pinf = p[idinf[i]]
+        pinf = pinf[i] if pinf.size > 1 else pinf
 
         plt.figure()
         plt.plot(dat.y,p)
@@ -88,10 +94,11 @@ if __name__ == "__main__":
         plt.legend(proxylines, ['d99','d99GFM','dinf',f'{prop}inf','d1','d2','d1k','d2k'], loc='lower right')
         plt.show()
 
-        # plt.figure(figsize=(8,4))
-        # plt.pcolormesh(*np.meshgrid(dat.x, dat.y), getattr(dat,prop).T, shading='auto', cmap=cm.bwr)
-        # plt.ylim(0,0.0015)
-        # plt.colorbar(label=prop)
-        # plt.gca().set_aspect('auto')
-        # plt.xlabel("x")
-        # plt.ylabel("y")
+        plt.figure(figsize=(8,4))
+        plt.pcolormesh(*np.meshgrid(dat.x, dat.y), getattr(dat,prop).T, shading='auto', cmap=cm.bwr)
+        plt.ylim(0,dat.y[np.max(idinf)])
+        plt.colorbar(label=prop)
+        plt.gca().set_aspect('auto')
+        plt.xlabel("x")
+        plt.ylabel("y")
+# %%

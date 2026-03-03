@@ -2,6 +2,7 @@ import dill
 import numpy as np
 from warnings import warn
 from scipy.integrate import simpson
+from scipy.ndimage import gaussian_filter
 
 __all__ = ['load_case',
            'Case',
@@ -374,40 +375,51 @@ class BL(Case):
         if len(r) == 1: return r[0] 
         else: return r
 
-    def find_edge(self, edge_type='delta99'):
+    def find_edge(self, edge_type='delta99', interp=True, sigma_smooth=None):
         # TODO: Currently sometimes slightly underestimates values of delta1, delta2 
         # compared to those reported... unsure why or if it matters?
         if self.u.ndim > 1:
             nx, ny = self.u.shape
         else:
             nx, ny = 1, self.u.shape[0]
+
+        U, V, P, RHO = self.u, self.v, self.P, self.rho
+        if sigma_smooth is not None:
+            U = gaussian_filter(U, sigma=sigma_smooth)
+            V = gaussian_filter(V, sigma=sigma_smooth)
+            P = gaussian_filter(P, sigma=sigma_smooth)
+            RHO = gaussian_filter(RHO, sigma=sigma_smooth)
+
         if edge_type != 'delta99':
             if not self.hasdata('delta99'):
-                self.delta99, _ = self.find_edge('delta99')
+                self.delta99, _ = self.find_edge('delta99', interp=interp, sigma_smooth=sigma_smooth)
             id99 = np.argmin(np.abs(self.y[np.newaxis,:] - self.delta99[:,np.newaxis]),axis=-1)
             if id99.ndim > 1: id99 = id99.squeeze()
+
         
         match edge_type:
             case 'delta99':
                 # This is best way I could come up with to do this efficiently for 2D arrays
-                tmp = np.diff(self.u<=0.99*self.uinf[:,np.newaxis])
+                tmp = np.diff(U<0.99*self.uinf[:,np.newaxis])
                 ide = np.argmax(tmp,axis=-1) # First occurence of crossing 0.99uinf
                 # Check either side to choose what is closer to 0.99uinf
                 ide0 = np.transpose(np.array(list(zip(range(nx),ide))))
                 ide1 = np.transpose(np.array(list(zip(range(nx),ide+1))))
-                u0 = self.u[*ide0]; u1 = self.u[*ide1]
+                u0 = U[*ide0]; u1 = U[*ide1]
 
                 uu = np.concatenate([u0[:,np.newaxis], u1[:,np.newaxis]], axis=1)
                 idei = np.argmin(np.abs(uu - 0.99*self.uinf[:,np.newaxis]), axis=1)
-                ide = ide + idei
+                ide_ret = ide + idei
 
                 if self.y.ndim > 1:
                     # When there are different y values for different x locations (curved walls)
-                    id99 = np.transpose(np.array(list(zip(range(nx),ide))))
-                    d = self.y[*id99]
+                    id99 = np.transpose(np.array(list(zip(range(nx),ide_ret))))
+                    d = self.y[*id99] if not interp else \
+                        self.y[*ide0] + (0.99*self.uinf - u0) * (self.y[*ide1] - self.y[*ide0]) / (u1 - u0)
                 else:
-                    d = self.y[ide]
-                return d, ide
+                    d = self.y[ide_ret] if not interp else \
+                        self.y[ide] + (0.99*self.uinf - u0) * (self.y[ide+1] - self.y[ide]) / (u1 - u0)
+                return d, ide_ret
             
             case 'deltainf':
                 # Not a true BL thickness, but a standardized location to get true freestream values
@@ -429,50 +441,52 @@ class BL(Case):
                 idinf = id99 + (ny-id99)//2
                 idinf = np.transpose(np.array(list(zip(range(nx),idinf))))
                 
-                Umref2 = self.u[*idinf]**2 + self.v[*idinf]**2
-                Pref = self.P[*idinf]
-                rhoref = self.rho[*idinf]
+                Umref2 = U[*idinf]**2 + V[*idinf]**2
+                Pref = P[*idinf]
+                rhoref = RHO[*idinf]
                 for varref in [Umref2, Pref, rhoref]:
                     if not varref.ndim: varref = varref[np.newaxis]
                 
-                UI2 = 2.0*self.gamma/(self.gamma-1)*((Pref/rhoref)[:,np.newaxis] - self.P/self.rho)
-                UI2 += Umref2[:,np.newaxis] - self.v**2
+                UI2 = 2.0*self.gamma/(self.gamma-1)*((Pref/rhoref)[:,np.newaxis] - P/RHO)
+                UI2 += Umref2[:,np.newaxis] - V**2
 
                 # Find delta based on condition (similar to delta99)
-                tmp = np.diff(self.u**2 <= (0.99**2)*UI2)
+                tmp = np.diff(U**2 < (0.99**2)*UI2)
                 ide = np.argmax(tmp,axis=-1) # First occurence of crossing condition
                 # Check either side to choose what is closer to condition
                 ide0 = np.transpose(np.array(list(zip(range(nx),ide))))
                 ide1 = np.transpose(np.array(list(zip(range(nx),ide+1))))
-                u0 = self.u[*ide0]; u1 = self.u[*ide1]
+                u0 = U[*ide0]; u1 = U[*ide1]
                 U1 = UI2[*ide0]; U2 = UI2[*ide1]
 
                 uu = np.concatenate([u0[:,np.newaxis], u1[:,np.newaxis]], axis=1)
                 UU = np.concatenate([U1[:,np.newaxis], U2[:,np.newaxis]], axis=1)
                 idei = np.argmin(np.abs(uu**2 - (0.99**2)*UU), axis=1)
-                ide = ide + idei
+                ide_ret = ide + idei
 
                 if self.y.ndim > 1:
                     # When there are different y values for different x locations (curved walls)
-                    id99 = np.transpose(np.array(list(zip(range(nx),ide))))
-                    d = self.y[*id99]
+                    id99 = np.transpose(np.array(list(zip(range(nx),ide_ret))))
+                    d = self.y[*id99] if not interp else \
+                        self.y[*ide0] + (0.99*self.uinf - u0) * (self.y[*ide1] - self.y[*ide0]) / (u1 - u0)
                 else:
-                    d = self.y[ide]
-                return d, ide
+                    d = self.y[ide_ret] if not interp else \
+                        self.y[ide] + (0.99*self.uinf - u0) * (self.y[ide+1] - self.y[ide]) / (u1 - u0)
+                return d, ide_ret
             
             case 'delta1':
-                I = 1-(self.rho*self.u)/np.transpose([(self.rhoinf*self.uinf)])
+                I = 1-(RHO*U)/np.transpose([(self.rhoinf*self.uinf)])
             
             case 'delta1k':
-                I = 1-self.u/np.transpose([self.uinf])
+                I = 1-U/np.transpose([self.uinf])
             
             case 'delta2':
-                I = (self.rho*self.u)/np.transpose([(self.rhoinf*self.uinf)])
-                I *= (1-self.u/np.transpose([self.uinf]))
+                I = (RHO*U)/np.transpose([(self.rhoinf*self.uinf)])
+                I *= (1-U/np.transpose([self.uinf]))
             
             case 'delta2k':
-                I = self.u/np.transpose([self.uinf])
-                I *= (1-self.u/np.transpose([self.uinf]))
+                I = U/np.transpose([self.uinf])
+                I *= (1-U/np.transpose([self.uinf]))
             
             case _:
                 raise ValueError(f"Unknown edge type: {edge_type}")

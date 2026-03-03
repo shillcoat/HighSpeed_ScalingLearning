@@ -19,24 +19,26 @@ from filepaths import Volpiani2020_path  # This file is not kept in repo
 
 # %% Fetch and iterate through cases
 cases = glob(Volpiani2020_path + "/*/*.stats")
+ssmooth = [8, 2] # Helpful smoothing kernel for Volpiani (from experimentation in prop_checks.py)
 # Case parameter info not in file
-# [muref, muexp, Tw, Tr, xplot, xsp, dz]
+# x0 is starting point of usable data as chosen by inspection
+# [muref, muexp, Tw, Tr, x0, xplot, xsp, dz]
 c_params = {
-    "m5_twtr190_bl":        [1.2e-5,    0.75,   10.355, 10.355/1.9, 40.0,   65, 5.0/140.0],
-    "m5_twtr190_bl_m-025":  [5.0e-5,    -0.25,  10.355, 10.355/1.9, 45.0,   55, 5.0/200.0],
-    "m5_twtr080_bl_hRe":    [1.8e-5,    0.75,   4.36,   4.36/0.8,   40.0,   65, 5.0/200.0],
-    "m5_twtr080_bl_mhRe":   [1.2e-5,    0.75,   4.36,   4.36/0.8,   40.0,   65, 5.0/300.0],
-    "m5_twtr080_bl_vhRe":   [0.9e-5,    0.75,   4.36,   4.36/0.8,   40.0,   65, 5.0/340.0],
-    "m228_twtr050_bl":      [1.29e-4,   0.75,   0.963,  0.963/0.5,  35.0,   60, 5.0/256.0],
-    "m228_twtr100_bl":      [1.22e-4,   0.75,   1.920,  1.920,      35.0,   60, 5.0/128.0],
-    "m228_twtr100_bl_hRe":  [0.6e-4,    0.75,   1.920,  1.920,      35.0,   60, 5.0/256.0],
-    "m228_twtr190_bl":      [1.20e-4,   0.75,   3.658,  3.658/1.9,  35.0,   60, 5.0/180.0]
+    "m5_twtr190_bl":        [1.2e-5,    0.75,   10.355, 10.355/1.9, 25, 40.0,   65, 5.0/140.0],
+    "m5_twtr190_bl_m-025":  [5.0e-5,    -0.25,  10.355, 10.355/1.9, 25, 45.0,   55, 5.0/200.0],
+    "m5_twtr080_bl_hRe":    [1.8e-5,    0.75,   4.36,   4.36/0.8,   25, 40.0,   65, 5.0/200.0],
+    "m5_twtr080_bl_mhRe":   [1.2e-5,    0.75,   4.36,   4.36/0.8,   25, 40.0,   65, 5.0/300.0],
+    "m5_twtr080_bl_vhRe":   [0.9e-5,    0.75,   4.36,   4.36/0.8,   25, 40.0,   65, 5.0/340.0],
+    "m228_twtr050_bl":      [1.29e-4,   0.75,   0.963,  0.963/0.5,  15, 35.0,   60, 5.0/256.0],
+    "m228_twtr100_bl":      [1.22e-4,   0.75,   1.920,  1.920,      15, 35.0,   60, 5.0/128.0],
+    "m228_twtr100_bl_hRe":  [0.6e-4,    0.75,   1.920,  1.920,      15, 35.0,   60, 5.0/256.0],
+    "m228_twtr190_bl":      [1.20e-4,   0.75,   3.658,  3.658/1.9,  15, 35.0,   60, 5.0/180.0]
 }
 
 for c in cases:
     dbCase = BL('nondim', incomp=0, chem=0, gamma=1.4, Pr=0.7, Bk=0)
     casename = c.split('/')[-2]
-    muref, muexp, dbCase.Tw, dbCase.Tr, xplot, xsp, dz = c_params[casename]
+    dbCase.muinf, muexp, dbCase.Tw, dbCase.Tr, x0, xplot, xsp, dz = c_params[casename]
 
     # Open and read binary Hybrid file
     with open(c, 'rb') as f:
@@ -48,10 +50,15 @@ for c in cases:
         dbCase.y = np.fromfile(f, count=ny, dtype='float64')
         avg = np.fromfile(f, count=nx*ny*nv, dtype='float64')
         avg = avg.reshape([nx,ny,nv], order='F')
+    
+    ixb = np.argmin(np.abs(dbCase.x-x0))
+    ixe = np.argmin(np.abs(dbCase.x-xsp))
+    dbCase.x = dbCase.x[ixb:ixe]
+    avg = avg[ixb:ixe,:,:]
 
-    dbCase.mu_law = lambda T: muref * T**muexp
+    dbCase.mu_law = lambda T: dbCase.muinf * T**muexp
     dbCase.uinf = 1.0
-    dbCase.rhoinf = 1.0
+    # dbCase.rhoinf = 1.0
     dbCase.Tinf = 1.0
     
     # Reynolds mean and fluctuating quantities
@@ -109,19 +116,47 @@ for c in cases:
     dbCase.deltastar = mu_muw*np.sqrt(1/rho_rhow)*np.transpose([dbCase.deltaplus])
     dbCase.ystar = dbCase.y/dbCase.deltastar
 
+    # Get visual thickness
+    dbCase.delta99, id99 = dbCase.find_edge(sigma_smooth=ssmooth)
+    # Get free-stream location to extract rhoinf
+    dinf, idinf = dbCase.find_edge('deltainf', sigma_smooth=ssmooth)
+    idinf = np.transpose(np.array(list(zip(range(nx),idinf))))
+    dbCase.rhoinf = dbCase.rho[*idinf]
+
+    dbCase.delta1, _ = dbCase.find_edge('delta1', sigma_smooth=ssmooth)
+    dbCase.delta2, _ = dbCase.find_edge('delta2', sigma_smooth=ssmooth)
+
     dbCase.Cf = 2*dbCase.tauw/(dbCase.rhoinf + dbCase.uinf**2)
     dbCase.Bq = dbCase.qw/(dbCase.rhow*cp*dbCase.utau*dbCase.Tw)
 
-    # Get visual thickness
-    dbCase.delta99, id99 = dbCase.find_edge()
-    # Friction Reynolds numbers
+    # Reynolds numbers
+    dbCase.Redelta99 = dbCase.rhoinf*dbCase.uinf*dbCase.delta99/dbCase.muinf
+    dbCase.Retheta = dbCase.rhoinf*dbCase.uinf*dbCase.delta2/dbCase.muinf
+    dbCase.Redelta2 = dbCase.rhoinf*dbCase.uinf*dbCase.delta2/dbCase.muw
     dbCase.Retau = dbCase.delta99 / dbCase.deltaplus
     id99 = np.transpose(np.array(list(zip(range(nx),id99))))
-    dbCase.Retaustar = dbCase.delta99 / dbCase.deltastar[*id99]
+    dbCase.Retaustar = dbCase.delta99 / dbCase.deltastar[*idinf]
     
     cname = c.split('/')[-2]
-    ix = np.where(dbCase.x>=xplot)[0][0]
-    print(f"Case: {cname}\nRe_tau = {dbCase.Retau[ix]:.4f}\nRe_tau* = {dbCase.Retaustar[ix]:.4f}\n")
+    ix = np.argmin(np.abs(dbCase.x-xplot))
+    
+    print(f"Case: {cname}")
+    print(f"ix         = {ix}")
+    print(f"nx         = {nx}")
+    print(f"ny         = {ny}")
+    print(f"deltaplus  = {dbCase.deltaplus[ix]:.4f}")
+    print(f"delta99    = {dbCase.delta99[ix]:.4f}")
+    print(f"delta1     = {dbCase.delta1[ix]:.4f}")
+    print(f"delta*_inf = {dbCase.deltastar[*idinf][ix]:.6f}")
+    print(f"Re_delta99 = {dbCase.Redelta99[ix]:.4f}")
+    print(f"Re_theta   = {dbCase.Retheta[ix]:.4f}")
+    print(f"Re_delta2  = {dbCase.Redelta2[ix]:.4f}")
+    print(f"Re_tau     = {dbCase.Retau[ix]:.4f}")
+    print(f"Re_tau*    = {dbCase.Retaustar[ix]:.4f}")
+    print("-" * 40)
+
+    # print(f"Case: {cname}\nRe_tau = {dbCase.Retau[ix]:.4f}\nRe_tau* = {dbCase.Retaustar[ix]:.4f}\n")
+
     
     i = c[::-1].index('/') + 1
     save_case(dbCase, c[:-i] + ".dill")
