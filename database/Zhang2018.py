@@ -75,11 +75,11 @@ for c in cases:
     dbCase.uplus = dbCase.u / dbCase.utau
     dbCase.P = dbCase.Pinf * dat[:,5]
     dbCase.T = dbCase.Tinf * dat[:,6]
-    dbCase.rhow = dbCase.P[0]/dbCase.R/dbCase.Tw
+    dbCase.rhow = dbCase.P[...,0]/dbCase.R/dbCase.Tw
     dbCase.muw = dbCase.mu_law(dbCase.Tw)
     dbCase.rho = dbCase.rhow * dat[:,7]
     dbCase.mu = dbCase.mu_law(dbCase.T)
-    dbCase.tauw = dbCase.utau**2*dbCase.rho[0]
+    dbCase.tauw = dbCase.utau**2*dbCase.rho[...,0]
     dbCase.a = np.sqrt(dbCase.gamma*dbCase.R*dbCase.T)
     dbCase.M = dbCase.u/dbCase.a
 

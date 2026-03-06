@@ -371,7 +371,9 @@ class BL(Case):
             for param in BL.bl_params.keys():
                 if getattr(self,param,None) is not None: 
                     r.append(param)
-        r.append(super().hasdata(p))
+        tmp = super().hasdata(p)        
+        if isinstance(tmp, list): r.extend(tmp)
+        else: r.append(tmp)
         if len(r) == 1: return r[0] 
         else: return r
 
