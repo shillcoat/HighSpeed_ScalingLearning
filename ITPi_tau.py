@@ -3,6 +3,8 @@ import numpy as np
 import IT_Pi
 from glob import glob
 import tomllib
+import os
+from argparse import ArgumentParser
 
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
@@ -20,8 +22,14 @@ from ITPi_plotting import *
 # PiY = tau_w/(rho*U_e^2)
 
 if __name__ == "__main__":
+    parser = ArgumentParser(description="Run IT_Pi on tau data")
+    parser.add_argument("-c", "--config", type=str, default="inputfiles/ITPi_tau.toml", help="Path to toml config file")
+    parser.add_argument("-p", "--plot", action='store_true', 
+                        help="Flag to only run plotting routines (assumes IT_Pi has already been run and output files are in place)")
+    args = parser.parse_args()
+
     # Script settings/inputs: read from toml config file
-    with open("inputfiles/ITPi_tau.toml", "rb") as f:
+    with open(args.config, "rb") as f:
         config = tomllib.load(f)
     Nk = config['N_training'] # Number of times to repeat the training
     Njobs = config['N_jobs'] # Number of parallel jobs (-1 for all cores)
@@ -35,6 +43,9 @@ if __name__ == "__main__":
     bl_edge = config['bl_edgetype'] # Criterion for identifying boundary layer edge (e.g. 'delta99', 'delta1k')
     datalst = config['data'] # Data to include in training (e.g. ['Gonzalo', 'Wenzel', 'Volpiani'])
 
+    if not os.path.exists(output_path):
+        os.mkdir(output_path)
+
     # Read in incompressible PG data from Gonzalo
     GonzaloDat = np.load(gonzalo_taudata)
     npoints = GonzaloDat['X'].shape[0]
@@ -47,7 +58,7 @@ if __name__ == "__main__":
     ivars = [tau_data._vars_all.index(x) for x in Vars]
 
     if 'Gonzalo' in datalst:
-        dat = tau_data(X, PiY)
+        dat = tau_data(X, PiY, ID=np.array(['Gonzalo']*X.shape[0],dtype='T').reshape(-1,1))
     else: dat = tau_data() # Just initialize empty data object and extract from cases
 
     cases = []
@@ -114,24 +125,27 @@ if __name__ == "__main__":
     np.savez(f'{output_path}/tau_ITPI_{"_".join(Vars)}_train_valid.npz', 
              traindat_X=traindat._X, traindat_Y=traindat._Y, validdat_X=validdat._X, validdat_Y=validdat._Y)
 
-    # Run IT_Pi
-    for k in range(Nk):
-        print(f'Iteration = {k+1}')
-        for num_input in NPi:
-            X, Y, _, basis_matrices = traindat.get_data(Vars, Npts=Ntrain)
+    if not args.plot:
+        # Run IT_Pi
+        for k in range(Nk):
+            print(f'Iteration = {k+1}')
+            for num_input in NPi:
+                X, Y, _, basis_matrices = traindat.get_data(Vars, Npts=Ntrain)
 
-            results = IT_Pi.run(
-                X, Y,
-                basis_matrices,
-                num_input=num_input,
-                estimator="kraskov",
-                estimator_params={"k": 5},
-                n_jobs=Njobs,
-                optimize_output=False,
-            )
+                results = IT_Pi.run(
+                    X, Y,
+                    basis_matrices,
+                    num_input=num_input,
+                    estimator="kraskov",
+                    estimator_params={"k": 5},
+                    n_jobs=Njobs,
+                    optimize_output=False,
+                )
 
-            fnm = f'{output_path}/tau_ITPI_{"_".join(Vars)}_Ni{num_input}_{k}_output'
-            np.savez(fnm, **results)
+                results = results['orig_results']  # For compatibility with original IT-Pi function
+
+                fnm = f'{output_path}/tau_ITPI_{"_".join(Vars)}_Ni{num_input}_{k}_output'
+                np.savez(fnm, **results)
 
     # Plot some results
     # Visualize exponents
@@ -152,20 +166,30 @@ if __name__ == "__main__":
 
     # Plot Pi groups against each other
     X, PiY, IDs, _ = dat.get_vars(Vars)
-    # Ni = 1
-    fig, ax = plt.subplots(figsize=(6,6), layout='constrained')
-    # Color points by dataset (in same order as datalst)
-    cols = np.zeros_like(IDs, dtype=int)
-    for i in range(len(datalst)):
-        cols += (i+1)*(np.char.find(IDs,datalst[i])>=0).astype(int)
-    kmin = MI[0].argmin()
-    plt_1Pi(X, PiY, e[0][kmin], Vars, Varlbls, PiYlbl=r"$\Pi_\tau$", ax=ax, s=2, alpha=0.75, colQ=cols, colLbl='Dataset')
-    fig.savefig(f'{output_path}/tau_ITPI_{"_".join(Vars)}_Ni1_space.pdf')
-    
-    # Ni = 2
-    fig, ax = plt.subplots(figsize=(8,5), layout='constrained')
-    kmin = MI[1].argmin()
-    plt_2Pi(X, PiY, e[1][kmin], Vars, Varlbls, PiYlbl=r"$\Pi_\tau$", ax=ax)
-    fig.savefig(f'{output_path}/tau_ITPI_{"_".join(Vars)}_Ni2_space.pdf')
+
+    if 1 in NPi:
+        # Ni = 1
+        fig, ax = plt.subplots(figsize=(6,6), layout='constrained')
+        # Color points by dataset (in same order as datalst)
+        cols = np.zeros_like(IDs, dtype=int)
+        if len(datalst) > 1:
+            for i in range(len(datalst)):
+                cols += (i+1)*(np.char.find(IDs,datalst[i])>=0).astype(int)
+        else:
+            ids = np.unique(IDs)
+            for i, name in enumerate(ids):
+                cols += (i+1)*(IDs == name).astype(int)
+            assert np.max(cols) <= len(ids)  # Basic sanity check that color mapping makes sense/didn't double count anything
+        print(f"Dataset color mapping: {datalst if len(datalst)>1 else ids}")
+        kmin = MI[0].argmin()
+        plt_1Pi(X, PiY, e[0][kmin], Vars, Varlbls, PiYlbl=r"$\Pi_\tau$", ax=ax, s=2, alpha=0.75, colQ=cols, colLbl='Dataset')
+        fig.savefig(f'{output_path}/tau_ITPI_{"_".join(Vars)}_Ni1_space.pdf')
+
+    if 2 in NPi:    
+        # Ni = 2
+        fig, ax = plt.subplots(figsize=(8,5), layout='constrained')
+        kmin = MI[1].argmin()
+        plt_2Pi(X, PiY, e[1][kmin], Vars, Varlbls, PiYlbl=r"$\Pi_\tau$", ax=ax)
+        fig.savefig(f'{output_path}/tau_ITPI_{"_".join(Vars)}_Ni2_space.pdf')
 
 # %%

@@ -35,7 +35,7 @@ def calc_pi(c, basis_matrices, X):
         # coef_pi is always of size (1, something), I don't know why we are
         # making this so complex. Anw, we multiply by the sign unless the
         # exponent is almost 0, in that case the variable should have no effect
-        mysign = np.sign( X[:,i] ) if np.abs(coef_pi[0,i])>1e-10 else 0.
+        mysign = np.sign( X[:,i] ) if np.abs(coef_pi[0,i])>1e-10 else 1.
         tmp = mysign * np.abs( X[:, i] ) ** coef_pi[:, i]
         pi_mat = np.multiply(pi_mat, tmp.reshape(-1, 1))
     return pi_mat

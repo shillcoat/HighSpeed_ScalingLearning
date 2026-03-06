@@ -53,7 +53,10 @@ class ITPi_data(ABC):
     
     def get_data(self, vars:list, Npts:int = 2000):
         X, Y, IDs, D_in = self.get_vars(vars)
-        rind = random.sample(range(X.shape[0]), Npts)
+        try:
+            rind = random.sample(range(X.shape[0]), Npts)
+        except ValueError: # Asked for more points than we have, just return all data
+            rind = np.ones(X.shape[0], dtype=bool)
         num_basis = D_in.shape[1] - matrix_rank(D_in)
         basis_matrices = calc_basis(D_in, num_basis)
         return X[rind], Y[rind], IDs[rind], basis_matrices
@@ -72,7 +75,7 @@ def get_exp(ITPi_r:dict|str, D_in:np.matrix|np.ndarray, Vars:list[str]|tuple[str
     # non-dimensionality)
     eorig = norme(ITPi_r['input_coef'], 5)
     e = np.zeros_like(eorig)
-    if Vars is not None:
+    if Vars is not None and 'dPe' in Vars:
         # flip eorig so dPe ~ 0 is always the first vector 
         # - SH: I think this is just so first Pi group doesn't have dPe?
         eorig = np.roll(eorig, eorig[:, Vars.index('dPe')].argmin(), axis=0)
@@ -83,7 +86,7 @@ def get_exp(ITPi_r:dict|str, D_in:np.matrix|np.ndarray, Vars:list[str]|tuple[str
 
 def pretty_exps(e:np.ndarray, varlbls:list[str]|tuple[str], prnt:bool=False):
     labels = []
-    for e_ in e:
+    for i, e_ in enumerate(e):
         num, den = "", ""
         for var, exp in zip(varlbls, e_):
             if '$' in var: var = var.replace('$','')
@@ -94,5 +97,5 @@ def pretty_exps(e:np.ndarray, varlbls:list[str]|tuple[str], prnt:bool=False):
         if num == "": num = "1"
         if den == "": labels.append(f"${num}$")
         else: labels.append(f"$\\frac{{{num}}}{{{den}}}$")
-        if prnt: print(labels[-1])
+        if prnt: print(f"\\Pi_{i+1} = {labels[-1][1:-1]}")
     return labels

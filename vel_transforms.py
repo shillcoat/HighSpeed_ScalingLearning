@@ -161,7 +161,6 @@ ax.set_title(r"Trettel \& Larsson Correction")
 cbar = fig.colorbar(cmap,ax=ax); cbar.set_label(Cquant)
 fig.tight_layout(); fig.show()
 
-# Volpiani et al.
 fig, ax = plt.subplots(figsize=[6,4])
 ax.grid(which='both', color='0.9')
 # for c in Zhang2018.keys():

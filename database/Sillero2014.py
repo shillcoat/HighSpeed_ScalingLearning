@@ -46,9 +46,10 @@ for c in cases:
     # Mean quantities
     dbCase.uplus = dat[:,8]
     dbCase.u = dbCase.uplus * dbCase.utau
-    dbCase.uinf = dbCase.u[-1]
+    dbCase.uinf = dbCase.u[...,-1]
     dbCase.nu = dbCase.uinf * dbCase.delta2 / dbCase.Retheta
-    dbCase.Cf = 2/dbCase.uplus[-1]**2
+    dbCase.Cf = 2/dbCase.uplus[...,-1]**2
+    dbCase.tauw = dbCase.utau**2  # Assume rho=1 because nondimensionalized
 
     dbCase.upup = np.square(dbCase.utau * dat[:,2])
     dbCase.vpvp = np.square(dbCase.utau * dat[:,3])

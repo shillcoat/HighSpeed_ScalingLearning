@@ -126,7 +126,7 @@ for c in cases:
     dbCase.delta1, _ = dbCase.find_edge('delta1', sigma_smooth=ssmooth)
     dbCase.delta2, _ = dbCase.find_edge('delta2', sigma_smooth=ssmooth)
 
-    dbCase.Cf = 2*dbCase.tauw/(dbCase.rhoinf + dbCase.uinf**2)
+    dbCase.Cf = 2*dbCase.tauw/(dbCase.rhoinf * dbCase.uinf**2)
     dbCase.Bq = dbCase.qw/(dbCase.rhow*cp*dbCase.utau*dbCase.Tw)
 
     # Reynolds numbers
