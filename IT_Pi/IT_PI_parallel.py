@@ -234,7 +234,7 @@ def main(
         uq_values.append(uq)
 
     return {
-        "input_coef": normalized_coef_pi_list,
+        "input_coef": np.array(normalized_coef_pi_list).reshape(num_input, X.shape[1]),
         "output_coef": coef_pi_o if optimize_output else None,
         "input_coef_basis": normalized_a_list if optimize_output else a_list,
         "output_coef_basis": a_list_o if optimize_output else None,

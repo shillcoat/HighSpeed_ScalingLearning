@@ -50,7 +50,7 @@ if __name__ == "__main__":
         estimator="binning",
         estimator_params={"num_bins": 40},
         seed=666666,
-        n_jobs=1,
+        n_jobs=10,
         optimize_output=True,
     )
 
