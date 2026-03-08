@@ -71,7 +71,7 @@ def main(
         n_processes = 1
     
     if verbose:
-        print(f"Using {n_processes} process(es) for parallel evaluation")
+        print(f"\nUsing {n_processes} process(es) for parallel evaluation")
     
     num_basis = basis_matrices.shape[0]
     print('-'*60)
@@ -159,89 +159,100 @@ def main(
     print('Optimized_MI:', optimized_MI)
     print('-'*60)
 
-    coefs = np.array(
-                     np.dot( optimized_params.reshape( -1, num_basis ),
-                            basis_matrices )
-                     )
+    a_list = optimized_params.reshape(-1, num_basis)
+    a_list_i = a_list[:num_input]
+    coefs_i = np.array(np.dot(a_list_i, basis_matrices))
+    a_list_o = a_list[num_input:] if optimize_output else None
+    coefs_o = np.array(np.dot(a_list_o, basis_matrices)) if optimize_output else None
 
     # These are what Gonzalo was using
     raw_results = {
-        "input_coef": coefs[:num_input],
-        "output_coef": coefs[num_input:] if optimize_output else None,
+        "input_coef": coefs_i,
+        "output_coef": coefs_o,
         "optimized_params": optimized_params,
         "optimized_MI": optimized_MI,
+        "a_list_i": a_list_i,
+        "a_list_o": a_list_o,
     }
 
-    # Additional processing from original IT-Pi function
-    a_list = [tuple(optimized_params[i*num_basis:(i+1)*num_basis]) for i in range(num_input)]
-    coef_pi_list = np.array([np.dot(a, basis_matrices) for a in a_list])
-    normalized_coef_pi_list = []
-    for coef_pi in coef_pi_list:
-        max_abs_value = np.max(np.abs(coef_pi))
-        normalized_coef_pi = coef_pi / max_abs_value
-        # normalized_coef_pi_list.append(np.round(normalized_coef_pi, 5))
-        normalized_coef_pi_list.append(normalized_coef_pi)
-        print('coef_pi:', normalized_coef_pi)
+    return raw_results  # Return raw results for now, will do additional processing later to compute Pi groups and irreducible error bounds
 
-    input_list = [calc_pi_omega(np.array(omega), X) for omega in normalized_coef_pi_list]
-    input_PI = np.column_stack(input_list)
+    # # Additional processing from original IT-Pi function
+    # # Apparently may be particular to certain cases, need to ask Yuan
+    # try:
+    #     a_list = [tuple(optimized_params[i*num_basis:(i+1)*num_basis]) for i in range(num_input)]
+    #     coef_pi_list = np.array([np.dot(a, basis_matrices) for a in a_list])
+    #     normalized_coef_pi_list = []
+    #     for coef_pi in coef_pi_list:
+    #         max_abs_value = np.max(np.abs(coef_pi))
+    #         normalized_coef_pi = coef_pi / max_abs_value
+    #         # normalized_coef_pi_list.append(np.round(normalized_coef_pi, 5))
+    #         normalized_coef_pi_list.append(normalized_coef_pi)
+    #         print('coef_pi:', normalized_coef_pi)
 
-    output_PI = Y
-    if optimize_output:
-        normalized_a_list = []
-        for a in a_list:
-            normalized_a = tuple(x / a[2] for x in a) if len(a) > 2 and a[2] != 0 else tuple(a)
-            # normalized_a = np.round(normalized_a,2)
-            normalized_a_list.append(normalized_a)
-        print('a_list:',normalized_a_list)
-        normalized_coef_pi_list = np.array([np.dot(a, basis_matrices) for a in normalized_a_list])
-        input_list = np.array([calc_pi(a, basis_matrices, X) for a in normalized_a_list])
-        input_PI = np.column_stack(input_list)
+    #     input_list = [calc_pi_omega(np.array(omega), X) for omega in normalized_coef_pi_list]
+    #     input_PI = np.column_stack(input_list)
 
-        a_list_o = [tuple(optimized_params[i*num_basis+num_para_input:(i+1)*num_basis+num_para_input]) for i in range(num_input)]
-        # a_list_o = [np.round(tuple(optimized_params[i*num_basis+num_para_input:(i+1)*num_basis+num_para_input]), 1) for i in range(num_input)]
-        # print('a_list_o =', a_list_o)
+    #     output_PI = Y
+    #     if optimize_output:
+    #         normalized_a_list = []
+    #         for a in a_list:
+    #             normalized_a = tuple(x / a[2] for x in a) if len(a) > 2 and a[2] != 0 else tuple(a)
+    #             # normalized_a = np.round(normalized_a,2)
+    #             normalized_a_list.append(normalized_a)
+    #         print('a_list:',normalized_a_list)
+    #         normalized_coef_pi_list = np.array([np.dot(a, basis_matrices) for a in normalized_a_list])
+    #         input_list = np.array([calc_pi(a, basis_matrices, X) for a in normalized_a_list])
+    #         input_PI = np.column_stack(input_list)
 
-        modified_a_list_o = []
-        first_norm_a = normalized_a_list[0]
-        for a_o in a_list_o:
-            ratio = a_o[2] / first_norm_a[2] if first_norm_a[2] != 0 else 1.0
-            modified_a_o = tuple(a_o[i] - first_norm_a[i] * ratio for i in range(len(a_o)))
-            modified_a_list_o.append(modified_a_o)
-        a_list_o = modified_a_list_o
+    #         a_list_o = [tuple(optimized_params[i*num_basis+num_para_input:(i+1)*num_basis+num_para_input]) for i in range(num_input)]
+    #         # a_list_o = [np.round(tuple(optimized_params[i*num_basis+num_para_input:(i+1)*num_basis+num_para_input]), 1) for i in range(num_input)]
+    #         # print('a_list_o =', a_list_o)
 
-        coef_pi_o = np.array(np.dot(a_list_o[0], basis_matrices))
-        # coef_pi_o = coef_pi_o / np.max(np.abs(coef_pi_o)) # Don't normalize this cause has to match provided Y!
-        # coef_pi_o = np.round(coef_pi_o, 5)
-        print('coef_pi_o:', coef_pi_o)
-        print("a_list_o:", a_list_o)
+    #         modified_a_list_o = []
+    #         first_norm_a = normalized_a_list[0]
+    #         for a_o in a_list_o:
+    #             ratio = a_o[2] / first_norm_a[2] if first_norm_a[2] != 0 else 1.0
+    #             modified_a_o = tuple(a_o[i] - first_norm_a[i] * ratio for i in range(len(a_o)))
+    #             modified_a_list_o.append(modified_a_o)
+    #         a_list_o = modified_a_list_o
 
-        output_PI = np.asarray(np.column_stack([calc_pi(a, basis_matrices, X) for a in modified_a_list_o])).reshape(-1, 1) * Y
+    #         coef_pi_o = np.array(np.dot(a_list_o[0], basis_matrices))
+    #         # coef_pi_o = coef_pi_o / np.max(np.abs(coef_pi_o))
+    #         # coef_pi_o = np.round(coef_pi_o, 5)
+    #         print('coef_pi_o:', coef_pi_o)
+    #         print("a_list_o:", a_list_o)
+
+    #         output_PI = np.asarray(np.column_stack([calc_pi(a, basis_matrices, X) for a in modified_a_list_o])).reshape(-1, 1) * Y
 
 
-    epsilon_values = []
-    uq_values = []
-    for j in range(input_PI.shape[1]):
-        epsilon_full, uq = calculate_bound_and_uq(
-            input_PI[:, j].reshape(-1, 1), output_PI, num_trials
-        )
-        epsilon_values.append(epsilon_full)
-        uq_values.append(uq)
+    #     epsilon_values = []
+    #     uq_values = []
+    #     for j in range(input_PI.shape[1]):
+    #         epsilon_full, uq = calculate_bound_and_uq(
+    #             input_PI[:, j].reshape(-1, 1), output_PI, num_trials
+    #         )
+    #         epsilon_values.append(epsilon_full)
+    #         uq_values.append(uq)
 
-    if input_PI.shape[1] > 1:
-        epsilon_full, uq = calculate_bound_and_uq(input_PI, output_PI, num_trials)
-        epsilon_values.append(epsilon_full)
-        uq_values.append(uq)
+    #     if input_PI.shape[1] > 1:
+    #         epsilon_full, uq = calculate_bound_and_uq(input_PI, output_PI, num_trials)
+    #         epsilon_values.append(epsilon_full)
+    #         uq_values.append(uq)
+    # except Exception:
+    #     print("\nError during post-processing of results. Returning raw results instead.")
+    #     print(traceback.format_exc())
+    #     return raw_results  # Return raw results if any error occurs during post-processing
 
-    return {
-        "input_coef": np.array(normalized_coef_pi_list).reshape(num_input, X.shape[1]),
-        "output_coef": coef_pi_o if optimize_output else None,
-        "input_coef_basis": normalized_a_list if optimize_output else a_list,
-        "output_coef_basis": a_list_o if optimize_output else None,
-        "irreducible_error": epsilon_values,
-        "uncertainty": uq_values,
-        "input_PI": input_PI,
-        "output_PI": output_PI,
-        "optimized_params": optimized_params,
-        "raw_results": raw_results,
-    }
+    # return {
+    #     "input_coef": np.array(normalized_coef_pi_list).reshape(num_input, X.shape[1]),
+    #     "output_coef": coef_pi_o if optimize_output else None,
+    #     "input_coef_basis": normalized_a_list if optimize_output else a_list,
+    #     "output_coef_basis": a_list_o if optimize_output else None,
+    #     "irreducible_error": epsilon_values,
+    #     "uncertainty": uq_values,
+    #     "input_PI": input_PI,
+    #     "output_PI": output_PI,
+    #     "optimized_params": optimized_params,
+    #     "raw_results": raw_results,
+    # }

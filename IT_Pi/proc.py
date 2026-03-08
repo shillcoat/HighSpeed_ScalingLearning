@@ -41,7 +41,7 @@ class ITPi_data(ABC):
         if ID_new is not None:
             if isinstance(ID_new, str):
                 ID_new = np.array([ID_new]*X_new.shape[0],dtype='T').reshape(-1,1)
-            elif isinstance(ID_new, list):
+            elif isinstance(ID_new, list|np.ndarray):
                 ID_new = np.array(ID_new,dtype='T').reshape(-1,1)
             self._id = np.vstack((self._id, ID_new))
         else:
@@ -73,16 +73,25 @@ def get_exp(ITPi_r:dict|str, D_in:np.matrix|np.ndarray, Vars:list[str]|tuple[str
         ITPi_r = np.load(ITPi_r, allow_pickle=True)
     # Normalize exponents and remove small terms (adjusting rest to preserve
     # non-dimensionality)
-    eorig = norme(ITPi_r['input_coef'], 5)
-    e = np.zeros_like(eorig)
+    eorig_in = norme(ITPi_r['input_coef'], 5)
+    output_coef = ITPi_r['output_coef']
+    # Don't normalize output exponents as must multiply by Y!
+    eorig_out = np.round(output_coef, 5) if None not in output_coef else None
+    e_in = np.zeros_like(eorig_in)
+    e_out = np.zeros_like(eorig_out) if eorig_out is not None else None
     if Vars is not None and 'dPe' in Vars:
         # flip eorig so dPe ~ 0 is always the first vector 
         # - SH: I think this is just so first Pi group doesn't have dPe?
-        eorig = np.roll(eorig, eorig[:, Vars.index('dPe')].argmin(), axis=0)
-    for k, e_ in enumerate(eorig):
-        inds = np.where(np.abs(eorig[k]) < exp_thresh)[0]
-        e[k] = return_enew(np.array(D_in), e_, inds)
-    return np.array(e)
+        eorig_in = np.roll(eorig_in, eorig_in[:, Vars.index('dPe')].argmin(), axis=0)
+        eorig_out = np.roll(eorig_out, eorig_out[:, Vars.index('dPe')].argmin(), axis=0)
+    for k, e_ in enumerate(eorig_in):
+        inds = np.where(np.abs(eorig_in[k]) < exp_thresh)[0]
+        e_in[k] = return_enew(np.array(D_in), e_, inds)
+    if e_out is not None:
+        for k, e_ in enumerate(eorig_out):
+            inds = np.where(np.abs(eorig_out[k]) < exp_thresh)[0]
+            e_out[k] = return_enew(np.array(D_in), e_, inds)
+    return np.array(e_in), np.array(e_out) if e_out is not None else None
 
 def pretty_exps(e:np.ndarray, varlbls:list[str]|tuple[str], prnt:bool=False):
     labels = []

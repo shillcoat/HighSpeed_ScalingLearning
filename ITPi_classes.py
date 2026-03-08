@@ -68,7 +68,8 @@ class U_data(IT_Pi.ITPi_data):
         [-1, 0, -1, 0, -1, -1,  0,  0, -2],  # t
     ])
 
-    def extract_vars(self, cases:list[db.BL], edge_smooth:list[float]|str=None, grad_smooth:list[float]|str=None, IDs:list=None):
+    def extract_vars(self, cases:list[db.BL], edge_smooth:list[float]|str=None, grad_smooth:list[float]|str=None, IDs:list=None,
+                     remove_wake:bool=True):
         X, Y = np.ndarray([0,self._lvars]), np.ndarray([0,1])
         ID_new = np.ndarray([0,1],dtype='T')
         for ic, c in enumerate(cases):
@@ -78,31 +79,45 @@ class U_data(IT_Pi.ITPi_data):
                     edge, _ = c.find_edge(edge_type, sigma_smooth=edge_smooth)
                     setattr(c, edge_type, edge)
             assert np.all(c.hasdata(('ue','mu','rho','Bk','utau','tauw','P','muw','rhow','y','u')))
-            if c.P.squeeze().ndim > 1 and np.all(c.Bk != 0):
-                ide = np.argmin(np.abs(c.y-c.delta99[:,np.newaxis]),axis=-1)
-                ide = np.transpose(np.array(list(zip(range(len(c.x)),ide))))
+            
+            ide = np.argmin(np.abs(c.y-c.delta99[:,np.newaxis]),axis=-1)
+            ide2D = np.transpose(np.array(list(zip(range(len(c.x)),ide+1))))
 
+            if c.P.squeeze().ndim > 1 and np.all(c.Bk != 0):
                 P = c.P
                 if grad_smooth is not None:
                     P = gaussian_filter(P, sigma=grad_smooth)
                 dP = np.gradient(P, c.x, axis=0)
 
-                dPe = dP[*ide]
+                dPe = dP[*ide2D]
             else: 
                 dPe = c.Bk*c.tauw/c.delta1k
-            
-            y = np.tile(c.y, (len(c.x),1)).ravel()
-            rhow = np.tile(c.rhow, (1,len(c.y))).ravel()
-            muw = np.tile(c.muw, (1,len(c.y))).ravel()
-            Ue = np.tile(c.ue, (1,len(c.y))).ravel()
-            delta = np.tile(c.delta99, (1,len(c.y))).ravel()
-            dPe = np.tile(dPe, (1,len(c.y))).ravel()
-            utau = np.tile(c.utau, (1,len(c.y))).ravel()
 
-            # Flatten rather than raveling to ensure produces copy
-            u = c.u.flatten()
-            mu = c.mu.flatten()
-            rho = c.rho.flatten()
+            if remove_wake:
+                y = np.hstack([c.y[:i+1] for i in ide])
+                rhow = np.hstack([[c.rhow[i]]*(ide[i]+1) for i in range(len(ide))])
+                muw = np.hstack([[c.muw[i]]*(ide[i]+1) for i in range(len(ide))])
+                Ue = np.hstack([[c.ue[i]]*(ide[i]+1) for i in range(len(ide))])
+                delta = np.hstack([[c.delta99[i]]*(ide[i]+1) for i in range(len(ide))])
+                dPe = np.hstack([[dPe[i]]*(ide[i]+1) for i in range(len(ide))])
+                utau = np.hstack([[c.utau[i]]*(ide[i]+1) for i in range(len(ide))])
+
+                u = np.hstack([c.u[i,:ide[i]+1] for i in range(len(ide))])
+                mu = np.hstack([c.mu[i,:ide[i]+1] for i in range(len(ide))])
+                rho = np.hstack([c.rho[i,:ide[i]+1] for i in range(len(ide))])
+            else:
+                y = np.tile(c.y, (len(c.x),1)).ravel()
+                rhow = np.tile(c.rhow, (1,len(c.y))).ravel()
+                muw = np.tile(c.muw, (1,len(c.y))).ravel()
+                Ue = np.tile(c.ue, (1,len(c.y))).ravel()
+                delta = np.tile(c.delta99, (1,len(c.y))).ravel()
+                dPe = np.tile(dPe, (1,len(c.y))).ravel()
+                utau = np.tile(c.utau, (1,len(c.y))).ravel()
+
+                # Flatten rather than raveling to ensure produces copy
+                u = c.u.flatten()
+                mu = c.mu.flatten()
+                rho = c.rho.flatten()
 
             Xc = np.vstack((Ue, delta, utau, y, mu, muw, rho, rhow, dPe)).T
             Yc = (u/utau)[:,np.newaxis]
