@@ -47,8 +47,13 @@ def getPiIfromXe(X_, e_, tol: float = 1e-10):
     return (mysign * np.abs(X_) ** e_).prod(-1)
 
 
-def norme(e_, prec=3):
-    return np.round(e_ / np.abs(e_).max(1)[:, None], prec)
+def norme(e_, prec=3, inorm=None):
+    if inorm is None:
+        enorm = np.abs(e_).max(1)
+    else:
+        enorm = np.abs(e_[:, inorm])
+        enorm = np.array([enorm[i] if enorm[i] > 1e-10 else 1.0 for i in range(enorm.shape[0])])
+    return np.round(e_ / enorm[:, None], prec)
 
 
 def return_enew(D, e_, fixed_indices):

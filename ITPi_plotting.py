@@ -10,7 +10,7 @@ __all__ = [
 ]
 lstyles = ['-', '--', ':', '-.']
 
-def plt_exps(results, Ni, dat_obj, Vars, Varlbls=None, ax=None, exp_thresh=0.01):
+def plt_exps(results, Ni, dat_obj, Vars, Varlbls=None, ax=None, exp_thresh=0.01, inorm=None):
     if ax is None:
         fig, ax = plt.subplots(figsize=(6,5), layout='constrained')
     else: fig = ax.get_figure()
@@ -20,7 +20,7 @@ def plt_exps(results, Ni, dat_obj, Vars, Varlbls=None, ax=None, exp_thresh=0.01)
 
     e_in, e_out = [], []
     for res in results:
-        ei, eo = IT_Pi.get_exp(res,dat_obj._D_in[:,ivars],Vars,exp_thresh)
+        ei, eo = IT_Pi.get_exp(res,dat_obj._D_in[:,ivars],Vars,exp_thresh,inorm=inorm)
         e_in.append(ei)
         if eo is not None: e_out.append(eo)
     e_in = np.array(e_in)

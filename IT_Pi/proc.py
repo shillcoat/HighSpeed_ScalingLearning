@@ -68,12 +68,13 @@ class ITPi_data(ABC):
         valid_data = myclass(X=self._X[~rind], Y=self._Y[~rind], ID=self._id[~rind])
         return train_data, valid_data
 
-def get_exp(ITPi_r:dict|str, D_in:np.matrix|np.ndarray, Vars:list[str]|tuple[str]=None, exp_thresh:float=0.01):
+def get_exp(ITPi_r:dict|str, D_in:np.matrix|np.ndarray, Vars:list[str]|tuple[str]=None, exp_thresh:float=0.01,
+            inorm:int=None):
     if isinstance(ITPi_r,str):
         ITPi_r = np.load(ITPi_r, allow_pickle=True)
     # Normalize exponents and remove small terms (adjusting rest to preserve
     # non-dimensionality)
-    eorig_in = norme(ITPi_r['input_coef'], 5)
+    eorig_in = norme(ITPi_r['input_coef'], 5, inorm=inorm)
     output_coef = ITPi_r['output_coef']
     # Don't normalize output exponents as must multiply by Y!
     eorig_out = np.round(output_coef, 5) if None not in output_coef else None

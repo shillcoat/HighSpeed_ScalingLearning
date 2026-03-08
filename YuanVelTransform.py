@@ -51,8 +51,13 @@ if __name__ == "__main__":
     print(f"Output coefs: {results['output_coef']}")
 
     # Post-processing and plotting
-    _, _, e_in, e_out, MI = plt_exps([results],1,dat,Vars)
+    _, _, e_in, e_out, MI = plt_exps([results],1,dat,Vars,inorm=Vars.index('y'))
     plt.show()
+
+    print("Input groups:")
+    IT_Pi.pretty_exps(e_in[0], Vars, prnt=True)
+    print("Output groups:")
+    IT_Pi.pretty_exps(e_out[0], Vars, prnt=True)
 
     fig, ax = plt.subplots(figsize=(6,6), layout='constrained')
     cols = np.zeros_like(IDs, dtype=int)

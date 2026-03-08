@@ -67,21 +67,31 @@ if __name__ == "__main__":
 
     # Volpiani data
     if 'Volpiani' in datalst:
+        npts = 0
         for cs in glob(f"{fpaths.Volpiani2020_path}/*.dill"):
-            c = db.load_case(cs)
             cname = cs.split('/')[-1][:-5]
+            if 'twtr100' not in cname:
+                continue # Skip all diabatic cases for the minute
+            
+            c = db.load_case(cs)
             c.muw = c.muw * np.ones_like(c.x)
-            c.ue = c.uinf
+            c.ue = c.uinf * np.ones_like(c.x)
 
             cases.append(c)
             IDs.append(f'Volpiani.{cname}')
+
+            npts += len(c.y)*len(c.x)
+        print(f"Total number of data points from Volpiani: {npts}")
 
     # Zhang data
     if 'Zhang' in datalst:
         npts = 0
         for cs in glob(f"{fpaths.Zhang2018_path}/*.dill"):
-            c = db.load_case(cs)
             cname = cs.split('/')[-1][:-5]
+            if 'Tw' in cname:
+                continue # Skip all diabatic cases for the minute
+
+            c = db.load_case(cs)
             c.ue = c.uinf
 
             cases.append(c)
@@ -94,8 +104,8 @@ if __name__ == "__main__":
     if 'Sillero' in datalst:
         npts = 0
         for cs in glob(f"{fpaths.Sillero2014_path}/*.dill"):
-            c = db.load_case(cs)
             cname = cs.split('/')[-1][:-5]
+            c = db.load_case(cs)
             c.x = 0
             c.rho = np.ones_like(c.y); c.rhow = 1.0
             c.mu = c.nu * c.rho; c.muw = c.nu.squeeze()
@@ -105,6 +115,10 @@ if __name__ == "__main__":
 
             cases.append(c)
             IDs.append(f'Sillero.{cname}')
+
+            if '4500' in cname:
+                ypref = c.yplus
+                upref = c.uplus
 
             npts += len(c.y)
         print(f"Total number of data points from Sillero: {npts}")
@@ -176,7 +190,8 @@ if __name__ == "__main__":
     fig, axs = plt.subplots(1, 2, figsize=(12,5), sharex=True, layout='constrained')
     for Ni in NPi:
         flist = glob(f'{output_path}/U_ITPI_{"_".join(Vars)}_Ni{Ni}_*_output.npz')
-        _, _, ein_, eout_, MI_ = plt_exps(flist, Ni, U_data, Vars, Varlbls, ax=axs[Ni-1], exp_thresh=exp_thresh)
+        _, _, ein_, eout_, MI_ = plt_exps(flist, Ni, U_data, Vars, Varlbls, ax=axs[Ni-1], 
+                                          exp_thresh=exp_thresh, inorm=Vars.index('y'))
         e_in.append(ein_)
         e_out.append(eout_)
         MI.append(MI_)
@@ -214,7 +229,8 @@ if __name__ == "__main__":
         eo = e_out[0][kmin] if oo else None
         plt_1Pi(X, Y, ei, eo, PiYlbl=r"$\Pi_U$", ax=ax, s=2, alpha=0.75, colQ=cols, colLbl='Dataset')
         ax.set_xscale('log')
-        fig.savefig(f'{output_path}/U_ITPI_{"_".join(Vars)}_Ni1_space.pdf')
+        ax.semilogx(ypref,upref,'k--')
+        fig.savefig(f'{output_path}/U_ITPI_{"_".join(Vars)}_Ni1_space.png')
     
     # TODO: Update this section to support output optimization
     if 2 in NPi:
@@ -222,6 +238,6 @@ if __name__ == "__main__":
         fig, ax = plt.subplots(figsize=(8,5), layout='constrained')
         kmin = MI[1].argmin()
         plt_2Pi(X, Y, e_in[1][kmin], PiYlbl=r"$\Pi_U$", ax=ax)
-        fig.savefig(f'{output_path}/U_ITPI_{"_".join(Vars)}_Ni2_space.pdf')
+        fig.savefig(f'{output_path}/U_ITPI_{"_".join(Vars)}_Ni2_space.png')
 
 # %%
