@@ -116,10 +116,6 @@ if __name__ == "__main__":
             cases.append(c)
             IDs.append(f'Sillero.{cname}')
 
-            if '4500' in cname:
-                ypref = c.yplus
-                upref = c.uplus
-
             npts += len(c.y)
         print(f"Total number of data points from Sillero: {npts}")
 
@@ -138,8 +134,13 @@ if __name__ == "__main__":
             cases.append(c)
             IDs.append(f'Larsson.{cname}')
 
+    # Load Sillero reference incompressible profile for later comparison
+    c = db.load_case(f"{fpaths.Sillero2014_path}/Re_theta4500.dill")
+    ypref = c.yplus
+    upref = c.uplus
+    
     _ = dat.extract_vars(cases, grad_smooth=[5,1], IDs=IDs, remove_wake=rwake)
-    del cases # Free up memory once data is extracted
+    del cases, c # Free up memory once data is extracted
 
     print(f"Total number of data points after extraction: {len(dat._X)}")
 
