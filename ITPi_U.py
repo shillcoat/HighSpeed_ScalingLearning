@@ -1,5 +1,6 @@
 # Imports and plot formatting
 import numpy as np
+import scipy
 import IT_Pi
 from glob import glob
 import tomllib
@@ -20,7 +21,114 @@ from ITPi_plotting import *
 
 import pdb
 
-# PiY = u/utau? Or get ITPi to optimize it?
+# Y = u/utau, can allow IT-Pi to optimize it
+
+def extract_cases(caselst, dat_object=None, remove_wake=True, resample=True):
+    if dat_object is None:
+        dat_object = U_data()
+    
+    cases = []
+    IDs = []
+
+    # Handle Yuan's data a little differently
+    # Only supported when the variables of interest are ['y', 'rho', 'mu', 'rhow', 'muw', 'utau']
+    # or some subset of those
+    if 'Yuan' in caselst:
+        mat_data = scipy.io.loadmat(fpaths.Yuan_path)  # Velocity data from Yuan's IT-Pi example
+        X, Y, ids = mat_data['input'], mat_data['output'], mat_data['index']
+        N = X.shape[0]
+        X = np.hstack([np.zeros((N,2)), X[:,[5,0,2,4,1,3]], np.zeros((N,1))])
+        yuan_ids = np.array([f'Yuan.{id[0]}' for id in ids], dtype='T').reshape(-1,1)
+        dat_object.append_data(X, Y, ID_new=yuan_ids)
+    
+    # Wenzel data
+    if 'Wenzel' in caselst:
+        for cs in glob(f"{fpaths.Wenzel2019_path}/*.dill"):
+            c = db.load_case(cs)
+            cname = cs.split('/')[-1][:-5]
+            c.ue = c.uinf
+
+            cases.append(c)
+            IDs.append(f'Wenzel.{cname}')
+
+    # Volpiani data
+    if 'Volpiani' in caselst:
+        npts = 0
+        for cs in glob(f"{fpaths.Volpiani2020_path}/*.dill"):
+            cname = cs.split('/')[-1][:-5]
+            # if 'twtr100' not in cname:
+            #     continue # Skip all diabatic cases for the minute
+            
+            c = db.load_case(cs)
+            c.muw = c.muw * np.ones_like(c.x)
+            c.ue = c.uinf * np.ones_like(c.x)
+
+            cases.append(c)
+            IDs.append(f'Volpiani.{cname}')
+
+            npts += len(c.y)*len(c.x)
+        print(f"Total number of data points from Volpiani: {npts}")
+
+    # Zhang data
+    if 'Zhang' in caselst:
+        npts = 0
+        for cs in glob(f"{fpaths.Zhang2018_path}/*.dill"):
+            cname = cs.split('/')[-1][:-5]
+            # if 'Tw' in cname:
+            #     continue # Skip all diabatic cases for the minute
+
+            c = db.load_case(cs)
+            c.ue = c.uinf
+
+            cases.append(c)
+            IDs.append(f'Zhang.{cname}')
+
+            npts += len(c.y)
+        print(f"Total number of data points from Zhang: {npts}")
+
+    # Sillero data (incompressible)
+    if 'Sillero' in caselst:
+        npts = 0
+        for cs in glob(f"{fpaths.Sillero2014_path}/*.dill"):
+            cname = cs.split('/')[-1][:-5]
+            c = db.load_case(cs)
+            c.x = 0
+            c.rho = np.ones_like(c.y); c.rhow = 1.0
+            c.mu = c.nu * c.rho; c.muw = c.nu.squeeze()
+            c.ue = c.uinf
+
+            c.P = np.zeros_like(c.x) # Just give it something random so assertion doesn't throw error. Isn't used
+
+            cases.append(c)
+            IDs.append(f'Sillero.{cname}')
+
+            npts += len(c.y)
+        print(f"Total number of data points from Sillero: {npts}")
+
+    # Larsson data: I'm a little unsure about including this bc reconstruction was severe
+    # Also may overwhelm Wenzel data (only compressible data with actual PG)
+    if 'Larsson' in caselst:
+        for cs in glob(f"{fpaths.LarssonGroupBL_path}/*.dill"):
+            c = db.load_case(cs)
+            cname = cs.split('/')[-1][:-5]
+
+            # Data is very limited for this dataset: use what we have
+            c.ue = np.ones_like(c.x)
+            c.muw = c.muw * np.ones_like(c.x)
+            c.P = np.zeros_like(c.x) # Just give it something random so assertion doesn't throw error. Isn't used
+
+            cases.append(c)
+            IDs.append(f'Larsson.{cname}')
+
+    # Load Sillero reference incompressible profile for later comparison
+    c = db.load_case(f"{fpaths.Sillero2014_path}/Re_theta4500.dill")
+    ypref = c.yplus
+    upref = c.uplus
+
+    _ = dat_object.extract_vars(cases, grad_smooth=[5,1], IDs=IDs, remove_wake=remove_wake, resample=resample)
+    return dat_object, ypref, upref
+
+##################################################################################################################
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Run IT_Pi on U data")
@@ -46,102 +154,13 @@ if __name__ == "__main__":
     rwake = config['remove_wake']  # Whether to remove wake data points (y > delta99)
     estimator = config['estimator']  # Estimator to use for mutual information ("kraskov" or "binning")
     estimator_params = config['estimator_params']  # Parameters for the chosen estimator
+    resample = config['resample']  # Whether to resample data on log scale to give more near-wall points
 
     if not os.path.exists(output_path):
         os.mkdir(output_path)
 
     ivars = [U_data._vars_all.index(x) for x in Vars]
-    dat = U_data()
-    cases = []
-    IDs = []
-
-    # Wenzel data
-    if 'Wenzel' in datalst:
-        for cs in glob(f"{fpaths.Wenzel2019_path}/*.dill"):
-            c = db.load_case(cs)
-            cname = cs.split('/')[-1][:-5]
-            c.ue = c.uinf
-
-            cases.append(c)
-            IDs.append(f'Wenzel.{cname}')
-
-    # Volpiani data
-    if 'Volpiani' in datalst:
-        npts = 0
-        for cs in glob(f"{fpaths.Volpiani2020_path}/*.dill"):
-            cname = cs.split('/')[-1][:-5]
-            if 'twtr100' not in cname:
-                continue # Skip all diabatic cases for the minute
-            
-            c = db.load_case(cs)
-            c.muw = c.muw * np.ones_like(c.x)
-            c.ue = c.uinf * np.ones_like(c.x)
-
-            cases.append(c)
-            IDs.append(f'Volpiani.{cname}')
-
-            npts += len(c.y)*len(c.x)
-        print(f"Total number of data points from Volpiani: {npts}")
-
-    # Zhang data
-    if 'Zhang' in datalst:
-        npts = 0
-        for cs in glob(f"{fpaths.Zhang2018_path}/*.dill"):
-            cname = cs.split('/')[-1][:-5]
-            if 'Tw' in cname:
-                continue # Skip all diabatic cases for the minute
-
-            c = db.load_case(cs)
-            c.ue = c.uinf
-
-            cases.append(c)
-            IDs.append(f'Zhang.{cname}')
-
-            npts += len(c.y)
-        print(f"Total number of data points from Zhang: {npts}")
-
-    # Sillero data (incompressible)
-    if 'Sillero' in datalst:
-        npts = 0
-        for cs in glob(f"{fpaths.Sillero2014_path}/*.dill"):
-            cname = cs.split('/')[-1][:-5]
-            c = db.load_case(cs)
-            c.x = 0
-            c.rho = np.ones_like(c.y); c.rhow = 1.0
-            c.mu = c.nu * c.rho; c.muw = c.nu.squeeze()
-            c.ue = c.uinf
-
-            c.P = np.zeros_like(c.x) # Just give it something random so assertion doesn't throw error. Isn't used
-
-            cases.append(c)
-            IDs.append(f'Sillero.{cname}')
-
-            npts += len(c.y)
-        print(f"Total number of data points from Sillero: {npts}")
-
-    # Larsson data: I'm a little unsure about including this bc reconstruction was severe
-    # Also may overwhelm Wenzel data (only compressible data with actual PG)
-    if 'Larsson' in datalst:
-        for cs in glob(f"{fpaths.LarssonGroupBL_path}/*.dill"):
-            c = db.load_case(cs)
-            cname = cs.split('/')[-1][:-5]
-
-            # Data is very limited for this dataset: use what we have
-            c.ue = np.ones_like(c.x)
-            c.muw = c.muw * np.ones_like(c.x)
-            c.P = np.zeros_like(c.x) # Just give it something random so assertion doesn't throw error. Isn't used
-
-            cases.append(c)
-            IDs.append(f'Larsson.{cname}')
-
-    # Load Sillero reference incompressible profile for later comparison
-    c = db.load_case(f"{fpaths.Sillero2014_path}/Re_theta4500.dill")
-    ypref = c.yplus
-    upref = c.uplus
-    
-    _ = dat.extract_vars(cases, grad_smooth=[5,1], IDs=IDs, remove_wake=rwake)
-    del cases, c # Free up memory once data is extracted
-
+    dat, ypref, upref = extract_cases(datalst, remove_wake=rwake, resample=resample)
     print(f"Total number of data points after extraction: {len(dat._X)}")
 
     # Split data between training and validation sets (save these to go back to)
@@ -209,6 +228,9 @@ if __name__ == "__main__":
             IT_Pi.pretty_exps(e_out[i][kmin], Varlbls, prnt=True)
 
     # Plot Pi groups against each other
+    if resample:
+        # Don't want to plot with resampled data
+        dat, ypref, upref = extract_cases(datalst, remove_wake=rwake, resample=False)
     X, Y, IDs, _ = dat.get_vars(Vars)
 
     if 1 in NPi:
@@ -233,12 +255,13 @@ if __name__ == "__main__":
         ax.semilogx(ypref,upref,'k--')
         fig.savefig(f'{output_path}/U_ITPI_{"_".join(Vars)}_Ni1_space.png')
     
-    # TODO: Update this section to support output optimization
     if 2 in NPi:
         # Ni = 2
         fig, ax = plt.subplots(figsize=(8,5), layout='constrained')
         kmin = MI[1].argmin()
-        plt_2Pi(X, Y, e_in[1][kmin], PiYlbl=r"$\Pi_U$", ax=ax)
+        ei = e_in[1][kmin]
+        eo = e_out[1][kmin] if oo else None
+        plt_2Pi(X, Y, ei, eo, PiYlbl=r"$\Pi_U$", ax=ax)
         fig.savefig(f'{output_path}/U_ITPI_{"_".join(Vars)}_Ni2_space.png')
 
 # %%

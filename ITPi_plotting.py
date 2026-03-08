@@ -3,6 +3,8 @@ from matplotlib import cm, colors
 import IT_Pi
 import numpy as np
 
+import pdb
+
 __all__ = [
     "plt_exps",
     "plt_1Pi",
@@ -11,6 +13,7 @@ __all__ = [
 lstyles = ['-', '--', ':', '-.']
 
 def plt_exps(results, Ni, dat_obj, Vars, Varlbls=None, ax=None, exp_thresh=0.01, inorm=None):
+    # Currently only supports a single output Pi group (if optimizing output)
     if ax is None:
         fig, ax = plt.subplots(figsize=(6,5), layout='constrained')
     else: fig = ax.get_figure()
@@ -41,14 +44,14 @@ def plt_exps(results, Ni, dat_obj, Vars, Varlbls=None, ax=None, exp_thresh=0.01,
 
     for k in range(len(MI)):
         if Ni == 1:
-            ax.plot(range(len(Vars)), e_in[k,0], '-o', color=col(MI[k]), label=f"MI={MI[k]:.3f}")
+            ax.plot(range(len(Vars)), e_in[k,0], '-o', color=col(MI[k]))
             if e_out is not None:
-                ax.scatter(range(len(Vars)), e_out[k,0], color=col(MI[k]), label=f"MI={MI[k]:.3f}", edgecolor='k')
+                ax.scatter(range(len(Vars)), e_out[k,0], color=col(MI[k]), edgecolor='k')
         else:
             for i in range(Ni):
                 ax.plot(range(len(Vars)), e_in[k,i], lstyles[i%len(lstyles)]+'o', color=col(MI[k]))
-                if e_out is not None:
-                    ax.scatter(range(len(Vars)), e_out[k,i], color=col(MI[k]), edgecolor='k')
+            if e_out is not None:
+                ax.scatter(range(len(Vars)), e_out[k,0], color=col(MI[k]), edgecolor='k')
     ax.set_ylabel("exponent")
 
     cbar = fig.colorbar(cmap,ax=ax); cbar.set_label("MI",rotation=0,labelpad=15)
@@ -79,14 +82,17 @@ def plt_1Pi(X, Y, e_in, e_out, PiYlbl=None, ax=None, colQ=None, colLbl=None, **k
     ax.set_ylabel(PiYlbl, rotation=0)
     return fig, ax
 
-def plt_2Pi(X, PiY, e, PiYlbl=None, ax=None, **kwargs):
+def plt_2Pi(X, Y, e_in, e_out, PiYlbl=None, ax=None, **kwargs):
     if ax is None:
         fig, ax = plt.subplots(figsize=(8,5), layout='constrained')
     else: fig = ax.get_figure()
     if PiYlbl is None:
         PiYlbl = r"$\Pi_o$"
 
-    PiX = np.array([IT_Pi.getPiIfromXe(X, e_) for e_ in e]).T
+    PiX = np.array([IT_Pi.getPiIfromXe(X, e_) for e_ in e_in]).T
+    PiY = Y
+    if e_out is not None:
+        PiY = Y * np.array(IT_Pi.getPiIfromXe(X, e_out.squeeze()))[:,np.newaxis]
     Cmin, Cmax = np.min(PiY), np.max(PiY)
     cmap = cm.ScalarMappable(colors.Normalize(vmin=Cmin, vmax=Cmax),"rainbow")
     ax.scatter(PiX[:,0], PiX[:,1], c=PiY, cmap='rainbow', **kwargs)

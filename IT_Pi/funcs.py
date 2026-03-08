@@ -48,11 +48,14 @@ def getPiIfromXe(X_, e_, tol: float = 1e-10):
 
 
 def norme(e_, prec=3, inorm=None):
-    if inorm is None:
-        enorm = np.abs(e_).max(1)
-    else:
-        enorm = np.abs(e_[:, inorm])
-        enorm = np.array([enorm[i] if enorm[i] > 1e-10 else 1.0 for i in range(enorm.shape[0])])
+    enorm = np.abs(e_).max(1)
+    if inorm is not None:
+        enorm_orig = enorm.copy()
+        enorm = e_[:, inorm]  # Presume we probably want this one in the numerator then
+        for i in range(enorm.shape[0]):
+            # If the chosen normalization is super non-dominant, don't use it
+            enorm[i] = enorm[i] if (np.abs(enorm[i]) > 1e-5 and 
+                                    np.abs(enorm[i]/enorm_orig[i]) > 0.1) else enorm_orig[i]
     return np.round(e_ / enorm[:, None], prec)
 
 

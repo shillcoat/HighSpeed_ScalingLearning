@@ -2,11 +2,70 @@ import numpy as np
 import IT_Pi
 from database import db_config as db
 from scipy.ndimage import gaussian_filter
+from scipy.interpolate import interp1d
+
+import pdb
 
 __all__ = [
     "tau_data",
     "U_data",
+    "interpolate_profiles"
 ]
+
+def interpolate_profiles(
+    x: np.ndarray,
+    y: np.ndarray,
+    props: list[np.ndarray],
+    n_y: int = 200,
+    y_min_factor: float = 1.0,
+    log_base: float = 10.0, ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Written by Claude
+    Interpolate turbulent boundary layer velocity profiles u(x, y) and
+    resample the wall-normal coordinate on a logarithmic grid.
+
+    Parameters
+    ----------
+    x : (Nx,) array
+        Streamwise coordinate values.
+    y : (Ny,) array
+        Wall-normal coordinate values (must be strictly positive).
+    props : list of (Nx, Ny) arrays
+        Property fields to interpolate, where props[k][i, j] = props[k](x[i], y[j]).
+    n_y : int
+        Number of points in the new logarithmic y-grid.
+    y_min_factor : float
+        Scaling factor on y[0] to set the start of the log grid.
+    log_base : float
+        Base of the logarithm used to space the new y-grid (default 10).
+
+    Returns
+    -------
+    x : (Nx,) array
+        Original streamwise coordinates (unchanged).
+    y_log : (n_y,) array
+        New logarithmically-spaced wall-normal coordinates.
+    props_log : list of (Nx, n_y) arrays
+        Property fields resampled onto (x, y_log).
+    """
+    # Build the logarithmic y-grid
+    y_start = (y[1] if y[0] == 0 else y[0]) * y_min_factor
+    y_end = y[-1]
+
+    log_start = np.log(y_start) / np.log(log_base)
+    log_end = np.log(y_end) / np.log(log_base)
+    y_log = np.logspace(log_start, log_end, num=n_y, base=log_base)
+
+    # Interpolate
+    props_log = []
+    for prop in props:
+        prop_log = np.zeros((x.size, n_y))
+        for i in range(x.size):
+            prop_log[i, :] = interp1d(y, prop[i, :], kind="cubic", bounds_error=False, 
+                                      fill_value="extrapolate")(y_log)
+        props_log.append(prop_log)
+
+    return x, y_log, props_log
 
 class tau_data(IT_Pi.ITPi_data):
     # TODO: Maybe try giving it delta1k too to see if can rebuild Rotta-Clauser parameter identified by 
@@ -69,7 +128,8 @@ class U_data(IT_Pi.ITPi_data):
     ])
 
     def extract_vars(self, cases:list[db.BL], edge_smooth:list[float]|str=None, grad_smooth:list[float]|str=None, IDs:list=None,
-                     remove_wake:bool=True):
+                     remove_wake:bool=True, resample:bool=True):
+        # Includes option to resample on log scale to give training more near-wall data points
         X, Y = np.ndarray([0,self._lvars]), np.ndarray([0,1])
         ID_new = np.ndarray([0,1],dtype='T')
         for ic, c in enumerate(cases):
@@ -92,6 +152,13 @@ class U_data(IT_Pi.ITPi_data):
                 dPe = dP[*ide2D]
             else: 
                 dPe = c.Bk*c.tauw/c.delta1k
+
+            if resample:
+                props = [c.u, c.rho, c.mu]
+                _, ynew, props_log = interpolate_profiles(c.x, c.y, props, n_y=len(c.y))
+                c.y = ynew
+                c.u, c.rho, c.mu = props_log
+                ide = np.argmin(np.abs(c.y-c.delta99[:,np.newaxis]),axis=-1)
 
             if remove_wake:
                 y = np.hstack([c.y[:i+1] for i in ide])
