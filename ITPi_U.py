@@ -6,6 +6,7 @@ from glob import glob
 import tomllib
 import os
 from argparse import ArgumentParser
+import multiprocessing
 
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
@@ -131,6 +132,9 @@ def extract_cases(caselst, dat_object=None, remove_wake=True, resample=True):
 ##################################################################################################################
 
 if __name__ == "__main__":
+    # Configure multiprocessing so I can keep editing things in the background without breaking running scripts
+    multiprocessing.set_start_method('forkserver')
+
     parser = ArgumentParser(description="Run IT_Pi on U data")
     parser.add_argument("-c", "--config", type=str, default="inputfiles/ITPi_U.toml", help="Path to toml config file")
     parser.add_argument("-p", "--plot", action='store_true', 

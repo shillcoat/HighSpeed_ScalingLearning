@@ -4,6 +4,8 @@ from warnings import warn
 from scipy.integrate import simpson
 from scipy.ndimage import gaussian_filter
 
+import pdb
+
 __all__ = ['load_case',
            'Case',
            'BL',
@@ -88,7 +90,14 @@ class Case:
         "rTppTpp": "<rho T''T''>",
         "ruppTpp": "<rho u''T''>",
         "rvppTpp": "<rho v''T''>",
-        "rwppTpp": "<rho w''T''>"
+        "rwppTpp": "<rho w''T''>",
+
+        # Scaling
+        "deltastar": "Semi-local length scale",
+        "yplus": "Wall-normal coordinate in friction units",
+        "ystar": "Wall-normal coordinate in semi-local units",
+        "uplus": "Streamwise velocity in frction units",
+
     }
     oneD_params = {
         # Geometry
@@ -116,12 +125,22 @@ class Case:
         "Cf": "Skin-friction coefficient",
         "Bq": "Dimensionaless wall heat-transfer rate",
 
+        # Edge quantities
+        "ue": "Reynolds-averaged mean edge velocity",
+        "ae": "Reynolds-averaged mean edge speed of sound",
+        "Me": "Reynolds-averaged mean edge Mach number",
+        "rhoe": "Reynolds-averaged mean edge density",
+        "Pe": "Reynolds-averaged mean edge pressure",
+        "Te": "Reynolds-averaged mean edge temperature",
+        "mue": "Reynolds-averaged mean edge dynamic viscosity",
+        "ue_F": "Favre-averaged mean edge velocity",
+        "rhoe_F": "Favre-averaged mean edge density",
+        "Pe_F": "Favre-averaged mean edge pressure",
+        "Te_F": "Favre-averaged mean edge temperature",
+        "mue_F": "Favre-averaged mean edge dynamic viscosity",
+
         # Scaling
         "deltaplus": "Friction length scale",
-        "deltastar": "Semi-local length scale",
-        "yplus": "Wall-normal coordinate in friction units",
-        "ystar": "Wall-normal coordinate in semi-local units",
-        "uplus": "Streamwise velocity in frction units",
 
         # Non-dimensional numbers
         "Pr": "Molecular Prandtl number",
@@ -207,7 +226,7 @@ class Case:
         # fw and gw are wall values of kernel that will be prepended if y=0 is not included in dataset
         # If a label is provided, the transformed velocity and coordinate will be saved to u{label} and y{label} attributes
         ndim = len(self.u.shape)
-        prep = True if np.all(self.y[...,0]>0) else False
+        prep = True if np.all(self.y[...,0]>1e-10) else False
         if label:
             self._unfreeze()
             rhop = self.rho/np.transpose([self.rhow])
@@ -316,20 +335,6 @@ class BL(Case):
         "Pinf_F": "Favre-averaged mean free-stream pressure",
         "Tinf_F": "Favre-averaged mean free-stream temperature",
         "muinf_F": "Favre-averaged mean free-stream dynamic viscosity",
-
-        # Edge quantities
-        "ue": "Reynolds-averaged mean edge velocity",
-        "ae": "Reynolds-averaged mean edge speed of sound",
-        "Me": "Reynolds-averaged mean edge Mach number",
-        "rhoe": "Reynolds-averaged mean edge density",
-        "Pe": "Reynolds-averaged mean edge pressure",
-        "Te": "Reynolds-averaged mean edge temperature",
-        "mue": "Reynolds-averaged mean edge dynamic viscosity",
-        "ue_F": "Favre-averaged mean edge velocity",
-        "rhoe_F": "Favre-averaged mean edge density",
-        "Pe_F": "Favre-averaged mean edge pressure",
-        "Te_F": "Favre-averaged mean edge temperature",
-        "mue_F": "Favre-averaged mean edge dynamic viscosity",
 
         # Other quantities
         'Tr': 'Recovery temperature',
@@ -512,6 +517,8 @@ class Channel(Case):
 
         # Non-dimensional numbers
         'Reh': 'Channel half-height Reynolds number',
+        'Rebulk': 'Channel bulk Reynolds number',
+        'Mbulk': 'Channel bulk Mach number',
     }
     
     def __init__(self, units:str, **params):
@@ -519,11 +526,14 @@ class Channel(Case):
         for key in Channel.channel_params.keys():
             setattr(self, key, None)
 
-        # Read in provided parameters and assign those specific to channel type
+        # Read in provided parameters and assign those specific to Channel type
+        poplist = []
         for key, val in params.items():
             if key in Channel.channel_params.keys():
                 setattr(self, key, val)
-                params.pop(key)
+                poplist.append(key)
+        for popkey in poplist:
+            params.pop(popkey)
 
         super().__init__('channel',units,**params)
 
