@@ -4,6 +4,8 @@ from database import db_config as db
 from scipy.ndimage import gaussian_filter
 from scipy.interpolate import interp1d
 
+from database.db_config import BL
+
 import pdb
 
 __all__ = [
@@ -134,33 +136,41 @@ class U_data(IT_Pi.ITPi_data):
         ID_new = np.ndarray([0,1],dtype='T')
         for ic, c in enumerate(cases):
             for edge_type in ['delta99','delta1k']:
-                edge = getattr(c, edge_type)
+                try:
+                    edge = getattr(c, edge_type)
+                except AttributeError:
+                    edge = getattr(c, 'h') # Messy fix to support channel data for now
                 if edge is None: 
                     edge, _ = c.find_edge(edge_type, sigma_smooth=edge_smooth)
                     setattr(c, edge_type, edge)
-            assert np.all(c.hasdata(('ue','mu','rho','Bk','utau','tauw','P','muw','rhow','y','u')))
+            assert np.all(c.hasdata(('ue','mu','rho','utau','P','muw','rhow','y','u')))
             
-            ide = np.argmin(np.abs(c.y-c.delta99[:,np.newaxis]),axis=-1)
-            ide2D = np.transpose(np.array(list(zip(range(len(c.x)),ide+1))))
+            if isinstance(c,BL):
+                ide = np.argmin(np.abs(c.y-c.delta99[:,np.newaxis]),axis=-1)
+                ide2D = np.transpose(np.array(list(zip(range(len(c.x)),ide+1))))
 
-            if c.P.squeeze().ndim > 1 and np.all(c.Bk != 0):
-                P = c.P
-                if grad_smooth is not None:
-                    P = gaussian_filter(P, sigma=grad_smooth)
-                dP = np.gradient(P, c.x, axis=0)
+            if isinstance(c,BL):
+                assert c.hasdata(('Bk','tauw'))
+                if c.P.squeeze().ndim > 1 and np.all(c.Bk != 0):
+                    P = c.P
+                    if grad_smooth is not None:
+                        P = gaussian_filter(P, sigma=grad_smooth)
+                    dP = np.gradient(P, c.x, axis=0)
 
-                dPe = dP[*ide2D]
-            else: 
-                dPe = c.Bk*c.tauw/c.delta1k
+                    dPe = dP[*ide2D]
+                else: 
+                    dPe = c.Bk*c.tauw/c.delta1k
+            else: dPe = np.zeros_like(c.x)
 
             if resample:
                 props = [c.u, c.rho, c.mu]
                 _, ynew, props_log = interpolate_profiles(c.x, c.y, props, n_y=len(c.y))
                 c.y = ynew
                 c.u, c.rho, c.mu = props_log
-                ide = np.argmin(np.abs(c.y-c.delta99[:,np.newaxis]),axis=-1)
+                if isinstance(c, BL):
+                    ide = np.argmin(np.abs(c.y-c.delta99[:,np.newaxis]),axis=-1)
 
-            if remove_wake:
+            if remove_wake and isinstance(c, BL):
                 y = np.hstack([c.y[:i+1] for i in ide])
                 rhow = np.hstack([[c.rhow[i]]*(ide[i]+1) for i in range(len(ide))])
                 muw = np.hstack([[c.muw[i]]*(ide[i]+1) for i in range(len(ide))])
@@ -177,7 +187,7 @@ class U_data(IT_Pi.ITPi_data):
                 rhow = np.tile(c.rhow, (1,len(c.y))).ravel()
                 muw = np.tile(c.muw, (1,len(c.y))).ravel()
                 Ue = np.tile(c.ue, (1,len(c.y))).ravel()
-                delta = np.tile(c.delta99, (1,len(c.y))).ravel()
+                delta = np.tile(c.delta99 if isinstance(c,BL) else c.h, (1,len(c.y))).ravel()
                 dPe = np.tile(dPe, (1,len(c.y))).ravel()
                 utau = np.tile(c.utau, (1,len(c.y))).ravel()
 

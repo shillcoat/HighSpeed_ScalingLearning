@@ -45,6 +45,8 @@ def extract_cases(caselst, dat_object=None, remove_wake=True, resample=True):
     # Wenzel data
     if 'Wenzel' in caselst:
         for cs in glob(f"{fpaths.Wenzel2019_path}/*.dill"):
+            if 'ZPG' not in cs: # Only use ZPG data for now
+                continue
             c = db.load_case(cs)
             cname = cs.split('/')[-1][:-5]
             c.ue = c.uinf
@@ -87,6 +89,34 @@ def extract_cases(caselst, dat_object=None, remove_wake=True, resample=True):
             npts += len(c.y)
         print(f"Total number of data points from Zhang: {npts}")
 
+    # Trettel data
+    if 'Trettel' in caselst:
+        npts = 0
+        for cs in glob(f"{fpaths.Trettel2016_path}/*.dill"):
+            cname = cs.split('/')[-1][:-5]
+            c = db.load_case(cs)
+
+            cases.append(c)
+            IDs.append(f'Trettel.{cname}')
+
+            npts += len(c.y)
+        print(f"Total number of data points from Trettel: {npts}")
+
+    if 'Modesti' in caselst:
+        npts = 0
+        for cs in glob(f"{fpaths.Modesti2016_path}/*.dill"):
+            cname = cs.split('/')[-1][:-5]
+            c = db.load_case(cs)
+            
+            c.ue = c.u[...,-1]
+            c.P = np.zeros_like(c.x) # Just give it something random so assertion doesn't throw error. Isn't used
+
+            cases.append(c)
+            IDs.append(f'Modesti.{cname}')
+
+            npts += len(c.y)
+        print(f"Total number of data points from Modesti: {npts}")
+
     # Sillero data (incompressible)
     if 'Sillero' in caselst:
         npts = 0
@@ -107,7 +137,6 @@ def extract_cases(caselst, dat_object=None, remove_wake=True, resample=True):
         print(f"Total number of data points from Sillero: {npts}")
 
     # Larsson data: I'm a little unsure about including this bc reconstruction was severe
-    # Also may overwhelm Wenzel data (only compressible data with actual PG)
     if 'Larsson' in caselst:
         for cs in glob(f"{fpaths.LarssonGroupBL_path}/*.dill"):
             c = db.load_case(cs)
@@ -150,6 +179,7 @@ if __name__ == "__main__":
     NPi = config['N_Pi'] # List of number of Pi groups to consider
     Vars = config['Vars'] # Variables to consider
     Varlbls = config['Varlbls'] # LaTeX variable labels for plotting, in same order as Vars
+    Ylbl = config['Ylbl']  # LaTeX label for target variable
     output_path = config['output_path']
     exp_thresh = config['exp_threshold'] # Threshold for setting exponent to zero
     train_ratio = config['train_ratio']  # Ratio of data to use for training
@@ -229,7 +259,8 @@ if __name__ == "__main__":
         IT_Pi.pretty_exps(e_in[i][kmin], Varlbls, prnt=True)
         if oo:
             print("Output groups:")
-            IT_Pi.pretty_exps(e_out[i][kmin], Varlbls, prnt=True)
+            eo = e_out[i][kmin]
+            IT_Pi.pretty_exps(np.concatenate([eo,[[1]]],axis=-1), Varlbls + [Ylbl], prnt=True)
 
     # Plot Pi groups against each other
     if resample:
