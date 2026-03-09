@@ -130,11 +130,13 @@ class U_data(IT_Pi.ITPi_data):
     ])
 
     def extract_vars(self, cases:list[db.BL], edge_smooth:list[float]|str=None, grad_smooth:list[float]|str=None, IDs:list=None,
-                     remove_wake:bool=True, resample:bool=True):
+                     remove_wake:bool=True, resample:bool=True, limitx:bool=True):
         # Includes option to resample on log scale to give training more near-wall data points
         X, Y = np.ndarray([0,self._lvars]), np.ndarray([0,1])
         ID_new = np.ndarray([0,1],dtype='T')
         for ic, c in enumerate(cases):
+            # If have a lot of profiles in 'x' only take the middle 10 to avoid overwhelming other datasets
+            xslice = np.s_[c.x.size//2:c.x.size//2+10] if (c.x.size > 20 and limitx) else np.s_[:]
             for edge_type in ['delta99','delta1k']:
                 try:
                     edge = getattr(c, edge_type)
@@ -170,34 +172,138 @@ class U_data(IT_Pi.ITPi_data):
                 if isinstance(c, BL):
                     ide = np.argmin(np.abs(c.y-c.delta99[:,np.newaxis]),axis=-1)
 
+            c.x = c.x[xslice]
+            if isinstance(c, BL):
+                ide = ide[xslice]
+
             if remove_wake and isinstance(c, BL):
+                y = np.hstack([c.y[:i+1] for i in ide])
+                rhow = np.hstack([[c.rhow[xslice][i]]*(ide[i]+1) for i in range(len(ide))])
+                muw = np.hstack([[c.muw[xslice][i]]*(ide[i]+1) for i in range(len(ide))])
+                Ue = np.hstack([[c.ue[xslice][i]]*(ide[i]+1) for i in range(len(ide))])
+                delta = np.hstack([[c.delta99[xslice][i]]*(ide[i]+1) for i in range(len(ide))])
+                dPe = np.hstack([[dPe[xslice][i]]*(ide[i]+1) for i in range(len(ide))])
+                utau = np.hstack([[c.utau[xslice][i]]*(ide[i]+1) for i in range(len(ide))])
+
+                u = np.hstack([c.u[xslice][i,:ide[i]+1] for i in range(len(ide))])
+                mu = np.hstack([c.mu[xslice][i,:ide[i]+1] for i in range(len(ide))])
+                rho = np.hstack([c.rho[xslice][i,:ide[i]+1] for i in range(len(ide))])
+            else:
+                y = np.tile(c.y, (len(c.x),1)).ravel()
+                rhow = np.tile(c.rhow[xslice], (1,len(c.y))).ravel()
+                muw = np.tile(c.muw[xslice], (1,len(c.y))).ravel()
+                Ue = np.tile(c.ue[xslice], (1,len(c.y))).ravel()
+                delta = np.tile(c.delta99[xslice] if isinstance(c,BL) else c.h, (1,len(c.y))).ravel()
+                dPe = np.tile(dPe[xslice], (1,len(c.y))).ravel()
+                utau = np.tile(c.utau[xslice], (1,len(c.y))).ravel()
+
+                # Flatten rather than raveling to ensure produces copy
+                u = c.u[xslice].flatten()
+                mu = c.mu[xslice].flatten()
+                rho = c.rho[xslice].flatten()
+
+            Xc = np.vstack((Ue, delta, utau, y, mu, muw, rho, rhow, dPe)).T
+            Yc = (u/utau)[:,np.newaxis]
+
+            if IDs is None:
+                IDc = np.array(['']*Xc.shape[0],dtype='T').reshape(-1,1)
+            else:
+                IDc = np.array([IDs[ic]]*Xc.shape[0],dtype='T').reshape(-1,1)
+            X, Y = np.vstack((X, Xc)), np.vstack((Y, Yc))
+            ID_new = np.vstack((ID_new, IDc))
+        self.append_data(X,Y,ID_new=ID_new)
+        return (X, Y)
+    
+
+class U_data_recast(U_data):
+    # Recast the problem to better match existing scaling laws: y and u are no longer provided and
+    # the output becomes 1/utau
+    _vars_all = ['dudy', 'y', 'rho', 'rhow', 'mu', 'muw', 'utau']
+    _D_in = np.matrix([  # Lazy dimensionality reduction: know that mu and muw will have to balance each other and likewise for rho
+        # dudy y  rho rhow mu  muw utau
+        [  0,  1, -3,  -3, -1, -1,  1], # L
+        [  0,  0,  1,   1,  1,  1,  0], # m
+        [ -1,  0,  0,   0, -1, -1, -1], # t
+    ])
+
+    def __init__(self, ypref=None, upref=None, ref_prof=None, X=None, Y=None, ID=None) -> None:
+        super().__init__(X, Y, ID)
+        if ypref is None and upref is None and ref_prof is None:
+            raise Exception("Must provide either ypref and upref or ref_prof to define the reference velocity \
+                             profile for calculating Y")
+        if ref_prof is None:
+            self.ref_prof = interp1d(ypref.squeeze(), upref.squeeze(), kind="cubic", 
+                                    bounds_error=False, fill_value="extrapolate")
+        else:
+            self.ref_prof = ref_prof
+
+    def split_train_valid(self, train_ratio:float = 0.8):
+        rind = np.random.random(self._X.shape[0]) < train_ratio
+        myclass = type(self)
+        train_data = myclass(ref_prof=self.ref_prof, X=self._X[rind], Y=self._Y[rind], ID=self._id[rind])
+        valid_data = myclass(ref_prof=self.ref_prof, X=self._X[~rind], Y=self._Y[~rind], ID=self._id[~rind])
+        return train_data, valid_data
+    
+    def get_Y(self, y, rhow, muw, utau):
+        yplus = y*rhow*utau/muw
+        uplus = self.ref_prof(yplus)
+        return np.gradient(uplus,yplus)
+
+    def extract_vars(self, cases:list[db.BL], edge_smooth:list[float]|str=None, grad_smooth:list[float]|str=None, IDs:list=None,
+                     remove_wake:bool=True, resample:bool=True):
+        # Includes option to resample on log scale to give training more near-wall data points
+        X, Y = np.ndarray([0,self._lvars]), np.ndarray([0,1])
+        ID_new = np.ndarray([0,1],dtype='T')
+        for ic, c in enumerate(cases):
+            for edge_type in ['delta99','delta1k']:
+                edge = getattr(c, edge_type)
+                if edge is None: 
+                    edge, _ = c.find_edge(edge_type, sigma_smooth=edge_smooth)
+                    setattr(c, edge_type, edge)
+            assert np.all(c.hasdata(('mu','rho','utau','muw','rhow')))
+            
+            ide = np.argmin(np.abs(c.y-c.delta99[:,np.newaxis]),axis=-1)
+
+            if resample:
+                props = [c.rho, c.mu]
+                _, ynew, props_log = interpolate_profiles(c.x, c.y, props, n_y=len(c.y))
+                c.y = ynew
+                c.rho, c.mu = props_log
+                ide = np.argmin(np.abs(c.y-c.delta99[:,np.newaxis]),axis=-1)
+
+            if remove_wake:
                 y = np.hstack([c.y[:i+1] for i in ide])
                 rhow = np.hstack([[c.rhow[i]]*(ide[i]+1) for i in range(len(ide))])
                 muw = np.hstack([[c.muw[i]]*(ide[i]+1) for i in range(len(ide))])
-                Ue = np.hstack([[c.ue[i]]*(ide[i]+1) for i in range(len(ide))])
-                delta = np.hstack([[c.delta99[i]]*(ide[i]+1) for i in range(len(ide))])
-                dPe = np.hstack([[dPe[i]]*(ide[i]+1) for i in range(len(ide))])
                 utau = np.hstack([[c.utau[i]]*(ide[i]+1) for i in range(len(ide))])
 
-                u = np.hstack([c.u[i,:ide[i]+1] for i in range(len(ide))])
+                dupdyp_ref = []
+                for i, ide_ in enumerate(ide):
+                    dupdyp_ref.append(self.get_Y(c.y[:ide_+1], c.rhow[i], c.muw[i], c.utau[i]))
+
                 mu = np.hstack([c.mu[i,:ide[i]+1] for i in range(len(ide))])
                 rho = np.hstack([c.rho[i,:ide[i]+1] for i in range(len(ide))])
+
+                dudy = np.hstack([np.gradient(c.u[i,:ide[i]+1], c.y[:ide[i]+1]) \
+                                  for i in range(len(ide))])
             else:
                 y = np.tile(c.y, (len(c.x),1)).ravel()
                 rhow = np.tile(c.rhow, (1,len(c.y))).ravel()
                 muw = np.tile(c.muw, (1,len(c.y))).ravel()
-                Ue = np.tile(c.ue, (1,len(c.y))).ravel()
-                delta = np.tile(c.delta99 if isinstance(c,BL) else c.h, (1,len(c.y))).ravel()
-                dPe = np.tile(dPe, (1,len(c.y))).ravel()
                 utau = np.tile(c.utau, (1,len(c.y))).ravel()
 
+                dupdyp_ref = []
+                for i in range(len(c.x)):
+                    dupdyp_ref.append(self.get_Y(c.y, c.rhow[i], c.muw[i], c.utau[i]))
+
                 # Flatten rather than raveling to ensure produces copy
-                u = c.u.flatten()
                 mu = c.mu.flatten()
                 rho = c.rho.flatten()
 
-            Xc = np.vstack((Ue, delta, utau, y, mu, muw, rho, rhow, dPe)).T
-            Yc = (u/utau)[:,np.newaxis]
+                dudy = np.gradient(c.u, c.y, axis=-1).flatten()
+
+            Xc = np.vstack((dudy, y, rho, rhow, mu, muw, utau)).T
+            Yc = np.array(dupdyp_ref).reshape(-1,1)
 
             if IDs is None:
                 IDc = np.array(['']*Xc.shape[0],dtype='T').reshape(-1,1)

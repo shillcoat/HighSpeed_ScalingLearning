@@ -9,7 +9,7 @@ from argparse import ArgumentParser
 import multiprocessing
 
 import matplotlib.pyplot as plt
-from matplotlib import rcParams
+from matplotlib import rcParams, cm, colors
 rcParams.update({'text.usetex': True, 
                  'font.size': 14, 
                  'font.family': 'serif'})
@@ -17,16 +17,22 @@ rcParams.update({'text.usetex': True,
 from database import db_config as db
 import database.filepaths as fpaths
 
-from ITPi_classes import U_data
+from ITPi_classes import U_data_recast
 from ITPi_plotting import *
 
 import pdb
 
 # Y = u/utau, can allow IT-Pi to optimize it
+# This appears to just be trash :(
 
-def extract_cases(caselst, dat_object=None, remove_wake=True, resample=True):
+def extract_cases(caselst, dat_object=None, remove_wake=True, resample=True, return_cases=False):
+    # Load Sillero reference incompressible profile for later comparison
+    c = db.load_case(f"{fpaths.Sillero2014_path}/Re_theta4500.dill")
+    ypref = c.yplus
+    upref = c.uplus
+    
     if dat_object is None:
-        dat_object = U_data()
+        dat_object = U_data_recast(ypref=ypref, upref=upref)
     
     cases = []
     IDs = []
@@ -36,17 +42,17 @@ def extract_cases(caselst, dat_object=None, remove_wake=True, resample=True):
     # or some subset of those
     if 'Yuan' in caselst:
         mat_data = scipy.io.loadmat(fpaths.Yuan_path)  # Velocity data from Yuan's IT-Pi example
-        X, Y, ids = mat_data['input'], mat_data['output'], mat_data['index']
-        N = X.shape[0]
-        X = np.hstack([np.zeros((N,2)), X[:,[5,0,2,4,1,3]], np.zeros((N,1))])
+        X, uutau, ids = mat_data['input'], mat_data['output'], mat_data['index']
+        Y = dat_object.get_Y(X[:,0], X[:,3], X[:,4], X[:,5])
+        dudy = np.gradient(uutau*X[:,5], X[:,0])[:,np.newaxis]
+        X = np.hstack((dudy, X[:,[0,1,3,2,4,5]]))
         yuan_ids = np.array([f'Yuan.{id[0]}' for id in ids], dtype='T').reshape(-1,1)
         dat_object.append_data(X, Y, ID_new=yuan_ids)
+        print(f"Total number of data points from Yuan: {X.shape[0]}")
     
     # Wenzel data
     if 'Wenzel' in caselst:
         for cs in glob(f"{fpaths.Wenzel2019_path}/*.dill"):
-            if 'ZPG' not in cs: # Only use ZPG data for now
-                continue
             c = db.load_case(cs)
             cname = cs.split('/')[-1][:-5]
             c.ue = c.uinf
@@ -89,34 +95,6 @@ def extract_cases(caselst, dat_object=None, remove_wake=True, resample=True):
             npts += len(c.y)
         print(f"Total number of data points from Zhang: {npts}")
 
-    # Trettel data
-    if 'Trettel' in caselst:
-        npts = 0
-        for cs in glob(f"{fpaths.Trettel2016_path}/*.dill"):
-            cname = cs.split('/')[-1][:-5]
-            c = db.load_case(cs)
-
-            cases.append(c)
-            IDs.append(f'Trettel.{cname}')
-
-            npts += len(c.y)
-        print(f"Total number of data points from Trettel: {npts}")
-
-    if 'Modesti' in caselst:
-        npts = 0
-        for cs in glob(f"{fpaths.Modesti2016_path}/*.dill"):
-            cname = cs.split('/')[-1][:-5]
-            c = db.load_case(cs)
-            
-            c.ue = c.u[...,-1]
-            c.P = np.zeros_like(c.x) # Just give it something random so assertion doesn't throw error. Isn't used
-
-            cases.append(c)
-            IDs.append(f'Modesti.{cname}')
-
-            npts += len(c.y)
-        print(f"Total number of data points from Modesti: {npts}")
-
     # Sillero data (incompressible)
     if 'Sillero' in caselst:
         npts = 0
@@ -137,6 +115,7 @@ def extract_cases(caselst, dat_object=None, remove_wake=True, resample=True):
         print(f"Total number of data points from Sillero: {npts}")
 
     # Larsson data: I'm a little unsure about including this bc reconstruction was severe
+    # Also may overwhelm Wenzel data (only compressible data with actual PG)
     if 'Larsson' in caselst:
         for cs in glob(f"{fpaths.LarssonGroupBL_path}/*.dill"):
             c = db.load_case(cs)
@@ -150,12 +129,9 @@ def extract_cases(caselst, dat_object=None, remove_wake=True, resample=True):
             cases.append(c)
             IDs.append(f'Larsson.{cname}')
 
-    # Load Sillero reference incompressible profile for later comparison
-    c = db.load_case(f"{fpaths.Sillero2014_path}/Re_theta4500.dill")
-    ypref = c.yplus
-    upref = c.uplus
-
     _ = dat_object.extract_vars(cases, grad_smooth=[5,1], IDs=IDs, remove_wake=remove_wake, resample=resample)
+    if return_cases:
+        return dat_object, ypref, upref, cases, IDs
     return dat_object, ypref, upref
 
 ##################################################################################################################
@@ -165,7 +141,7 @@ if __name__ == "__main__":
     multiprocessing.set_start_method('forkserver')
 
     parser = ArgumentParser(description="Run IT_Pi on U data")
-    parser.add_argument("-c", "--config", type=str, default="inputfiles/ITPi_U.toml", help="Path to toml config file")
+    parser.add_argument("-c", "--config", type=str, default="inputfiles/ITPi_U_recast.toml", help="Path to toml config file")
     parser.add_argument("-p", "--plot", action='store_true', 
                         help="Flag to only run plotting routines (assumes IT_Pi has already been run and output files are in place)")
     args = parser.parse_args()
@@ -179,7 +155,6 @@ if __name__ == "__main__":
     NPi = config['N_Pi'] # List of number of Pi groups to consider
     Vars = config['Vars'] # Variables to consider
     Varlbls = config['Varlbls'] # LaTeX variable labels for plotting, in same order as Vars
-    Ylbl = config['Ylbl']  # LaTeX label for target variable
     output_path = config['output_path']
     exp_thresh = config['exp_threshold'] # Threshold for setting exponent to zero
     train_ratio = config['train_ratio']  # Ratio of data to use for training
@@ -193,9 +168,10 @@ if __name__ == "__main__":
     if not os.path.exists(output_path):
         os.mkdir(output_path)
 
-    ivars = [U_data._vars_all.index(x) for x in Vars]
+    ivars = [U_data_recast._vars_all.index(x) for x in Vars]
     dat, ypref, upref = extract_cases(datalst, remove_wake=rwake, resample=resample)
     print(f"Total number of data points after extraction: {len(dat._X)}")
+    # pdb.set_trace()
 
     # Split data between training and validation sets (save these to go back to)
     traindat, validdat = dat.split_train_valid(train_ratio)
@@ -244,9 +220,8 @@ if __name__ == "__main__":
     fig, axs = plt.subplots(1, 2, figsize=(12,5), sharex=True, layout='constrained')
     for Ni in NPi:
         flist = glob(f'{output_path}/U_ITPI_{"_".join(Vars)}_Ni{Ni}_*_output.npz')
-        print(f"Found {len(flist)} files for Ni={Ni}")
-        _, _, ein_, eout_, MI_ = plt_exps(flist, Ni, U_data, Vars, Varlbls, ax=axs[Ni-1], 
-                                          exp_thresh=exp_thresh, inorm=Vars.index('y'))
+        _, _, ein_, eout_, MI_ = plt_exps(flist, Ni, U_data_recast, Vars, Varlbls, ax=axs[Ni-1], 
+                                          exp_thresh=exp_thresh, inorm=Vars.index('rho'))
         e_in.append(ein_)
         e_out.append(eout_)
         MI.append(MI_)
@@ -260,44 +235,60 @@ if __name__ == "__main__":
         IT_Pi.pretty_exps(e_in[i][kmin], Varlbls, prnt=True)
         if oo:
             print("Output groups:")
-            eo = e_out[i][kmin]
-            IT_Pi.pretty_exps(np.concatenate([eo,[[1]]],axis=-1), Varlbls + [Ylbl], prnt=True)
+            IT_Pi.pretty_exps(e_out[i][kmin], Varlbls, prnt=True)
 
     # Plot Pi groups against each other
-    if resample:
-        # Don't want to plot with resampled data
-        dat, ypref, upref = extract_cases(datalst, remove_wake=rwake, resample=False)
+    # Don't want to plot with resampled data
+    dat, ypref, upref, cases, case_ids = extract_cases(datalst, remove_wake=rwake, resample=False, return_cases=True)
     X, Y, IDs, _ = dat.get_vars(Vars)
 
-    if 1 in NPi:
-        # Ni = 1
-        fig, ax = plt.subplots(figsize=(6,6), layout='constrained')
-        # Color points by dataset (in same order as datalst)
-        cols = np.zeros_like(IDs, dtype=int)
-        if len(datalst) > 1:
-            for i in range(len(datalst)):
-                cols += (i+1)*(np.char.find(IDs,datalst[i])>=0).astype(int)
-        else:
-            ids = np.unique(IDs)
-            for i, name in enumerate(ids):
-                cols += (i+1)*(IDs == name).astype(int)
-            assert np.max(cols) <= len(ids)  # Basic sanity check that color mapping makes sense/didn't double count anything
-        print(f"Dataset color mapping: {datalst if len(datalst)>1 else ids}")
-        kmin = MI[0].argmin()
-        ei = e_in[0][kmin]
-        eo = e_out[0][kmin] if oo else None
-        plt_1Pi(X, Y, ei, eo, PiYlbl=r"$\Pi_U$", ax=ax, s=2, alpha=0.75, colQ=cols, colLbl='Dataset')
-        ax.set_xscale('log')
-        ax.semilogx(ypref,upref,'k--')
-        fig.savefig(f'{output_path}/U_ITPI_{"_".join(Vars)}_Ni1_space.png')
+    # Ni = 1
+    fig, ax = plt.subplots(figsize=(6,6), layout='constrained')
+    # Color points by dataset (in same order as datalst)
+    cols = np.zeros_like(IDs, dtype=int)
+    if len(datalst) > 1:
+        for i in range(len(datalst)):
+            cols += (i+1)*(np.char.find(IDs,datalst[i])>=0).astype(int)
+    else:
+        ids = np.unique(IDs)
+        for i, name in enumerate(ids):
+            cols += (i+1)*(IDs == name).astype(int)
+        assert np.max(cols) <= len(ids)  # Basic sanity check that color mapping makes sense/didn't double count anything
+    print(f"Dataset color mapping: {datalst if len(datalst)>1 else ids}")
+    kmin = MI[0].argmin()
+    ei = e_in[0][kmin]
+    eo = e_out[0][kmin] if oo else None
+    plt_1Pi(X, Y, ei, eo, PiYlbl=r"$\Pi_U$", ax=ax, s=2, alpha=0.75, colQ=cols, colLbl='Dataset')
+    ax.set_xscale('log')
+    fig.savefig(f'{output_path}/U_ITPI_{"_".join(Vars)}_Ni1_space.png')
     
-    if 2 in NPi:
-        # Ni = 2
-        fig, ax = plt.subplots(figsize=(8,5), layout='constrained')
-        kmin = MI[1].argmin()
-        ei = e_in[1][kmin]
-        eo = e_out[1][kmin] if oo else None
-        plt_2Pi(X, Y, ei, eo, PiYlbl=r"$\Pi_U$", ax=ax)
-        fig.savefig(f'{output_path}/U_ITPI_{"_".join(Vars)}_Ni2_space.png')
+    # # Compute velocity profiles obtained using the optimal Pi groups and compare to reference profile
+    # fig, ax = plt.subplots(figsize=[6,4])
+    # ax.grid(which='both', color='0.9')
+    # cmin, cmax = np.min(cols), np.max(cols)
+    # cmap = cm.ScalarMappable(norm=colors.Normalize(vmin=cmin, vmax=cmax), cmap='rainbow')
+    # for i, c in enumerate(cases):
+    #     cid = case_ids[i]
+    #     inds = np.array(IDs == cid).flatten()
+    #     Xc = X[inds,:]
+    #     PiX = np.array(IT_Pi.getPiIfromXe(Xc, ei.squeeze())).reshape(c.u.shape)
+    #     Yc = Y[inds,:]
+    #     PiY = Yc * np.array(IT_Pi.getPiIfromXe(Xc, eo.squeeze()))[:,np.newaxis] if oo else Yc
+    #     PiY = PiY.reshape(c.u.shape)
+        
+    #     yscaled, uscaled = c.vel_transform(f=PiX, g=PiY)
+    #     if len(c.x) > 1: 
+    #         Nx = len(c.x)
+    #         yscaled = yscaled[Nx//2]
+    #         uscaled = uscaled[Nx//2]
+
+    #     # Fix colors if this actually works. For now I'm too tired
+    #     col = cols[inds][0][0]
+    #     # ax.semilogx(yscaled, uscaled, c=col, cmap="rainbow")
+    #     ax.semilogx(yscaled, uscaled)
+    # # ax.semilogx(ypref,upref,'k--')
+    # fig.savefig(f'{output_path}/U_ITPI_{"_".join(Vars)}_profiles.png')
+    # # cbar = fig.colorbar(cmap,ax=ax); cbar.set_label('Dataset', labelpad=15)
+
 
 # %%
