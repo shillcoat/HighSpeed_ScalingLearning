@@ -102,6 +102,7 @@ def extract_cases(caselst, dat_object=None, remove_wake=True, resample=True):
             npts += len(c.y)
         print(f"Total number of data points from Trettel: {npts}")
 
+    # Modesti data
     if 'Modesti' in caselst:
         npts = 0
         for cs in glob(f"{fpaths.Modesti2016_path}/*.dill"):

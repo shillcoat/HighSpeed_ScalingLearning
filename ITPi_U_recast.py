@@ -53,6 +53,8 @@ def extract_cases(caselst, dat_object=None, remove_wake=True, resample=True, ret
     # Wenzel data
     if 'Wenzel' in caselst:
         for cs in glob(f"{fpaths.Wenzel2019_path}/*.dill"):
+            if 'ZPG' not in cs: # Only use ZPG data for now
+                continue
             c = db.load_case(cs)
             cname = cs.split('/')[-1][:-5]
             c.ue = c.uinf
@@ -95,6 +97,35 @@ def extract_cases(caselst, dat_object=None, remove_wake=True, resample=True, ret
             npts += len(c.y)
         print(f"Total number of data points from Zhang: {npts}")
 
+    # Trettel data
+    if 'Trettel' in caselst:
+        npts = 0
+        for cs in glob(f"{fpaths.Trettel2016_path}/*.dill"):
+            cname = cs.split('/')[-1][:-5]
+            c = db.load_case(cs)
+
+            cases.append(c)
+            IDs.append(f'Trettel.{cname}')
+
+            npts += len(c.y)
+        print(f"Total number of data points from Trettel: {npts}")
+
+    # Modesti data
+    if 'Modesti' in caselst:
+        npts = 0
+        for cs in glob(f"{fpaths.Modesti2016_path}/*.dill"):
+            cname = cs.split('/')[-1][:-5]
+            c = db.load_case(cs)
+            
+            c.ue = c.u[...,-1]
+            c.P = np.zeros_like(c.x) # Just give it something random so assertion doesn't throw error. Isn't used
+
+            cases.append(c)
+            IDs.append(f'Modesti.{cname}')
+
+            npts += len(c.y)
+        print(f"Total number of data points from Modesti: {npts}")
+
     # Sillero data (incompressible)
     if 'Sillero' in caselst:
         npts = 0
@@ -115,7 +146,6 @@ def extract_cases(caselst, dat_object=None, remove_wake=True, resample=True, ret
         print(f"Total number of data points from Sillero: {npts}")
 
     # Larsson data: I'm a little unsure about including this bc reconstruction was severe
-    # Also may overwhelm Wenzel data (only compressible data with actual PG)
     if 'Larsson' in caselst:
         for cs in glob(f"{fpaths.LarssonGroupBL_path}/*.dill"):
             c = db.load_case(cs)
