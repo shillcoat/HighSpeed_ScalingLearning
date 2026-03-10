@@ -5,6 +5,8 @@ import random
 from .IT_PI import calc_basis
 from .funcs import norme, return_enew
 
+import pdb
+
 # Create as abstract class so that error is raised if properties/methods are not defined
 # by subclass
 class ITPi_data(ABC):
@@ -99,6 +101,7 @@ def pretty_exps(e:np.ndarray, varlbls:list[str]|tuple[str], prnt:bool=False):
     for i, e_ in enumerate(e):
         num, den = "", ""
         for var, exp in zip(varlbls, e_):
+            if np.abs(exp) < 1e-3: continue
             if '$' in var: var = var.replace('$','')
             if exp < 0:
                 den += f"{var}^{{{-exp:.3f}}}"
@@ -109,3 +112,18 @@ def pretty_exps(e:np.ndarray, varlbls:list[str]|tuple[str], prnt:bool=False):
         else: labels.append(f"$\\frac{{{num}}}{{{den}}}$")
         if prnt: print(f"\\Pi_{i+1} = {labels[-1][1:-1]}")
     return labels
+
+def rescale_output(results:dict, basis_matrices:np.ndarray|np.matrix, iy:int) -> None:
+    # Remove contribution of input Pi group to cancel out output group dependence
+    # iy is the index of the variable with non-physical dependence (e.g. y)
+    output_coef_old = results['output_coef'].copy()
+    ibs = np.argwhere(basis_matrices[:,iy]!=0)[...,0] # Basis vectors with dependence
+    for a_o in results['a_list_o']:
+        norm = np.sum(results['a_list_i'][0][ibs] * np.asarray(basis_matrices)[ibs,iy])
+        ratio = np.sum(a_o[ibs] * np.asarray(basis_matrices)[ibs,iy]) / norm if np.abs(norm)>0.1 else 1.0
+        a_o -= results['a_list_i'][0] * ratio
+    results['output_coef'] = np.array(np.dot(results['a_list_o'], basis_matrices))
+    
+    # Check rescaling is consistent (not changing solution structure)
+    scaling = (output_coef_old - results['output_coef']).squeeze()/results['input_coef'][0]
+    assert np.allclose(scaling, scaling[0]), "Output rescaling is not consistent across basis vectors, check results"

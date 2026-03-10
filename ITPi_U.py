@@ -225,14 +225,8 @@ if __name__ == "__main__":
                 print(f"a_list_i: {results['a_list_i']}")
                 print(f"Input coefs: {results['input_coef']}")
                 if oo: 
-                    # Remove contribution of input Pi group to cancel out output group y dependence (non-physical)
                     iy = Vars.index('y')
-                    ib, _ = np.argwhere(basis_matrices[:,0]!=0)[0] # Basis vector with y dependence
-                    for a_o in results['a_list_o']:
-                        ratio = a_o[ib] / results['a_list_i'][0][ib] if results['a_list_i'][0][ib] != 0 else 1.0
-                        a_o -= results['a_list_i'][0] * ratio
-                    results['output_coef'] = np.array(np.dot(results['a_list_o'], basis_matrices))
-
+                    IT_Pi.rescale_output(results, basis_matrices, iy)
                     print(f"a_list_o: {results['a_list_o']}")
                     print(f"Output coefs: {results['output_coef']}")
 

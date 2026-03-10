@@ -23,7 +23,8 @@ from ITPi_plotting import *
 import pdb
 
 # Y = u/utau, can allow IT-Pi to optimize it
-# This appears to just be trash :(
+# Need to reconsider this: I think write idea is to cast as a problem of fitting shear,
+# but need to be less hand-wavy about it
 
 def extract_cases(caselst, dat_object=None, remove_wake=True, resample=True, return_cases=False):
     # Load Sillero reference incompressible profile for later comparison
@@ -43,8 +44,8 @@ def extract_cases(caselst, dat_object=None, remove_wake=True, resample=True, ret
     if 'Yuan' in caselst:
         mat_data = scipy.io.loadmat(fpaths.Yuan_path)  # Velocity data from Yuan's IT-Pi example
         X, uutau, ids = mat_data['input'], mat_data['output'], mat_data['index']
-        Y = dat_object.get_Y(X[:,0], X[:,3], X[:,4], X[:,5])
-        dudy = np.gradient(uutau*X[:,5], X[:,0])[:,np.newaxis]
+        Y = dat_object.get_Y(X[:,0], X[:,3], X[:,4], X[:,5])[:,np.newaxis]
+        dudy = np.gradient(uutau.squeeze()*X[:,5], X[:,0])[:,np.newaxis]
         X = np.hstack((dudy, X[:,[0,1,3,2,4,5]]))
         yuan_ids = np.array([f'Yuan.{id[0]}' for id in ids], dtype='T').reshape(-1,1)
         dat_object.append_data(X, Y, ID_new=yuan_ids)
@@ -185,6 +186,7 @@ if __name__ == "__main__":
     NPi = config['N_Pi'] # List of number of Pi groups to consider
     Vars = config['Vars'] # Variables to consider
     Varlbls = config['Varlbls'] # LaTeX variable labels for plotting, in same order as Vars
+    Ylbl = config['Ylbl']  # LaTeX label for target variable
     output_path = config['output_path']
     exp_thresh = config['exp_threshold'] # Threshold for setting exponent to zero
     train_ratio = config['train_ratio']  # Ratio of data to use for training
@@ -229,15 +231,12 @@ if __name__ == "__main__":
 
                 print(f"a_list_i: {results['a_list_i']}")
                 print(f"Input coefs: {results['input_coef']}")
-                if oo: 
-                    # Remove contribution of input Pi group to cancel out output group y dependence (non-physical)
-                    iy = Vars.index('y')
-                    ib, _ = np.argwhere(basis_matrices[:,0]!=0)[0] # Basis vector with y dependence
-                    for a_o in results['a_list_o']:
-                        ratio = a_o[ib] / results['a_list_i'][0][ib] if results['a_list_i'][0][ib] != 0 else 1.0
-                        a_o -= results['a_list_i'][0] * ratio
-                    results['output_coef'] = np.array(np.dot(results['a_list_o'], basis_matrices))
-
+                if oo:
+                    iy = Vars.index('dudy') 
+                    if np.isclose(results['output_coef'][...,iy], 0):
+                        # Backup if exponenent of dudy is already 0
+                        iy = Vars.index('y')
+                    IT_Pi.rescale_output(results, basis_matrices, iy)
                     print(f"a_list_o: {results['a_list_o']}")
                     print(f"Output coefs: {results['output_coef']}")
 
@@ -265,7 +264,8 @@ if __name__ == "__main__":
         IT_Pi.pretty_exps(e_in[i][kmin], Varlbls, prnt=True)
         if oo:
             print("Output groups:")
-            IT_Pi.pretty_exps(e_out[i][kmin], Varlbls, prnt=True)
+            eo = e_out[i][kmin]
+            IT_Pi.pretty_exps(np.concatenate([eo,[[1]]],axis=-1), Varlbls + [Ylbl], prnt=True)
 
     # Plot Pi groups against each other
     # Don't want to plot with resampled data
