@@ -283,7 +283,7 @@ if __name__ == "__main__":
         eo = e_out[0][kmin] if oo else None
         plt_1Pi(X, Y, ei, eo, PiYlbl=r"$\Pi_U$", ax=ax, s=2, alpha=0.75, colQ=cols, colLbl='Dataset')
         ax.set_xscale('log')
-        ax.semilogx(ypref,upref,'k--')
+        ax.semilogx(ypref.squeeze(),upref.squeeze(),'k--')
         fig.savefig(f'{output_path}/U_ITPI_{"_".join(Vars)}_Ni1_space.png')
     
     if 2 in NPi:

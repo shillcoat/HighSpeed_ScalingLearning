@@ -46,16 +46,17 @@ for c, Re in zip(cases, Re_values):
     axV.plot(cs.y, tauV, color=color, label=cname, linestyle=ls)
     axRe.plot(cs.y, tauRe, color=color, label=cname, linestyle=ls)
 
-    trettelTauTot.append({'c': cs, 'tau': np.vstack((cs.y, tauV+tauRe))})
+    trettelTauTot.append({'c': cs, 'tau': np.vstack((cs.yplus[0], tauV+tauRe))})
     # Plot inset region
-    mask = cs.y < 0.15
-    axV_inset.plot(cs.y[mask], tauV[mask], color=color, linestyle=ls)
-    axRe_inset.plot(cs.y[mask], tauRe[mask], color=color, linestyle=ls)
+    mask = cs.yplus[0] < 100
+    axV_inset.plot(cs.yplus[0][mask], tauV[mask], color=color, linestyle=ls)
+    axRe_inset.plot(cs.yplus[0][mask], tauRe[mask], color=color, linestyle=ls)
 
 # Format insets
 for ax_inset in [axV_inset, axRe_inset]:
-    ax_inset.set_xlim(0, 0.15)
+    ax_inset.set_xlim(0, 100)
     ax_inset.tick_params(labelsize=9)
+    ax_inset.set_xlabel(r"$y^+$", fontsize=10)
 
 # Mark inset region on main axes
 mark_inset(axV, axV_inset, loc1=2, loc2=3, fc="none", ec="0.5")
@@ -67,7 +68,7 @@ fig.colorbar(sm, ax=[axV, axRe], label=r"$Re_{\tau}$")
 
 axV.set_xlabel(r"$y$")
 axV.set_ylabel(r"$\tau_\nu/\tau_w$")
-axRe.set_xlabel(r"$y$")
+axRe.set_xlabel(r"$y/h$")
 axRe.set_ylabel(r"$\tau_R/\tau_w$")
 
 # %% Load Volpiani cases and plot viscous and Reynolds stresses, coloured by Retau
@@ -90,25 +91,26 @@ for c, Re in zip(cases, Re_values):
     cname = c.split('/')[-1][:-5]
     cs = db.load_case(c)
     ls = '-' if np.abs(cs.Minf-2.28)<0.2 else '--'
-    _, id99 = cs.find_edge(edge_type='delta99')
-    id99 = id99[ix]
+    d99, id99 = cs.find_edge(edge_type='delta99')
+    d99, id99 = d99[ix], id99[ix]
     color = cmap(norm(Re))
     tauRe = -cs.ruppvpp[ix,:id99+1]/cs.tauw[ix]
     tauV = (cs.mu[ix,:id99+1] * np.gradient(cs.u[ix,:id99+1], cs.y[:id99+1], axis=-1) / cs.tauw[ix]).flatten()
 
-    axV.plot(cs.y[:id99+1], tauV, color=color, label=cname, linestyle=ls)
-    axRe.plot(cs.y[:id99+1], tauRe, color=color, label=cname, linestyle=ls)
+    axV.plot(cs.y[:id99+1]/d99, tauV, color=color, label=cname, linestyle=ls)
+    axRe.plot(cs.y[:id99+1]/d99, tauRe, color=color, label=cname, linestyle=ls)
 
-    volpianiTauTot.append({'c': cs, 'tau': np.vstack((cs.y[:id99+1], tauV+tauRe))})
+    volpianiTauTot.append({'c': cs, 'tau': np.vstack((cs.yplus[ix][:id99+1], tauV+tauRe))})
     # Plot inset region
     mask = cs.yplus[ix] < 100
-    axV_inset.plot(cs.y[mask], tauV[mask[:id99+1]], color=color, linestyle=ls)
-    axRe_inset.plot(cs.y[mask], tauRe[mask[:id99+1]], color=color, linestyle=ls)
+    axV_inset.plot(cs.yplus[ix][mask], tauV[mask[:id99+1]], color=color, linestyle=ls)
+    axRe_inset.plot(cs.yplus[ix][mask], tauRe[mask[:id99+1]], color=color, linestyle=ls)
 
 # Format insets
 for ax_inset in [axV_inset, axRe_inset]:
-    ax_inset.set_xlim(0, cs.y[mask].max())
+    ax_inset.set_xlim(0, 100)
     ax_inset.tick_params(labelsize=9)
+    ax_inset.set_xlabel(r"$y^+$", fontsize=10)
 
 # Mark inset region on main axes
 mark_inset(axV, axV_inset, loc1=2, loc2=3, fc="none", ec="0.5")
@@ -120,7 +122,7 @@ fig.colorbar(sm, ax=[axV, axRe], label=r"$Re_{\tau}$")
 
 axV.set_xlabel(r"$y$")
 axV.set_ylabel(r"$\tau_\nu/\tau_w$")
-axRe.set_xlabel(r"$y$")
+axRe.set_xlabel(r"$y/\delta_{99}$")
 axRe.set_ylabel(r"$\tau_R/\tau_w$")
 
 # %% Compare total stresses
@@ -135,10 +137,11 @@ for c in volpianiTauTot:
     y = c['tau'][0,:]
     tauTot = c['tau'][1,:]
     ls = '-' if np.abs(cs.Minf-2.28)<0.2 else '--'
-    ax.plot(y/np.max(y), tauTot, linestyle=ls, c='r')
+    ax.plot(y, tauTot, linestyle=ls, c='r')
 ax.set_ylabel(r'$\tau_{tot}/\tau_w$')
-ax.set_xlabel(r'$y/\delta$')
+ax.set_xlabel(r'$y^+$')
 dummyTrettel = ax.plot([],[],c='k', label='Trettel2016')
 dummyVolpiani = ax.plot([],[],c='r', label='Volpiani2020')
+ax.set_xlim(0,100)
 ax.legend(loc='lower left')
 # %%

@@ -104,7 +104,7 @@ for c in cases:
     mu_eff = 0.5 * (dbCase.muw + dbCase.mu_law(dbCase.T[:,0]))
     cp = dbCase.gamma*dbCase.R/(dbCase.gamma-1)
     dbCase.tauw = mu_eff * dbCase.u[:,0] / dbCase.y[0]
-    dbCase.qw = cp * mu_eff / dbCase.Pr * (dbCase.T[:,0]-dbCase.Tw)/dbCase.y[0]
+    dbCase.qw = -cp * mu_eff / dbCase.Pr * (dbCase.T[:,0]-dbCase.Tw)/dbCase.y[0]
     
     dbCase.utau = np.sqrt(np.abs(dbCase.tauw) / dbCase.rhow)
     dbCase.uplus = dbCase.u/np.transpose([dbCase.utau])
@@ -153,6 +153,7 @@ for c in cases:
     print(f"Re_delta2  = {dbCase.Redelta2[ix]:.4f}")
     print(f"Re_tau     = {dbCase.Retau[ix]:.4f}")
     print(f"Re_tau*    = {dbCase.Retaustar[ix]:.4f}")
+    print(f"Bq         = {dbCase.Bq[ix]:.4e}")
     print("-" * 40)
 
     # print(f"Case: {cname}\nRe_tau = {dbCase.Retau[ix]:.4f}\nRe_tau* = {dbCase.Retaustar[ix]:.4f}\n")

@@ -17,7 +17,7 @@ import database.filepaths as fpath
 # %% Load cases
 Cmin, Cmax = 1e6, -1e6
 Cquant = "Bq"
-Sillero2014 = db.load_case(f"{fpath.Sillero2014_path}/Re_theta5000.dill")
+Sillero2014 = db.load_case(f"{fpath.Sillero2014_path}/Re_theta4500.dill")
 Trettel2016 = {}
 for c in glob(f"{fpath.Trettel2016_path}/*.dill"):
     cname = c.split('/')[-1][:-5]
@@ -51,17 +51,17 @@ for c in glob(f"{fpath.Modesti2016_path}/*.dill"):
 #     _ = Zhang2018[cname].vel_transform(label="TL")
 #     _ = Zhang2018[cname].vel_transform(label="V")
 #     _ = Zhang2018[cname].vel_transform(label="GFM")
-# Volpiani2020 = {}; Vxs = 900
-# for c in glob(f"{fpath.Volpiani2020_path}/*.dill"):
-#     cname = c.split('/')[-1][:-5]
-#     Volpiani2020[cname] = db.load_case(c)
-#     Cq = getattr(Volpiani2020[cname],Cquant)[Vxs]
-#     Cmin = np.min(Cq) if np.min(Cq)<Cmin else Cmin
-#     Cmax = np.max(Cq) if np.max(Cq)>Cmax else Cmax
-#     _ = Volpiani2020[cname].vel_transform(label="VD")
-#     _ = Volpiani2020[cname].vel_transform(label="TL")
-#     _ = Volpiani2020[cname].vel_transform(label="V")
-#     _ = Volpiani2020[cname].vel_transform(label="GFM")
+Volpiani2020 = {}; Vxs = 400
+for c in glob(f"{fpath.Volpiani2020_path}/*.dill"):
+    cname = c.split('/')[-1][:-5]
+    Volpiani2020[cname] = db.load_case(c)
+    Cq = getattr(Volpiani2020[cname],Cquant)[Vxs]
+    Cmin = np.min(Cq) if np.min(Cq)<Cmin else Cmin
+    Cmax = np.max(Cq) if np.max(Cq)>Cmax else Cmax
+    _ = Volpiani2020[cname].vel_transform(label="VD")
+    _ = Volpiani2020[cname].vel_transform(label="TL")
+    _ = Volpiani2020[cname].vel_transform(label="V")
+    _ = Volpiani2020[cname].vel_transform(label="GFM")
 # Wenzel2019 = {}; Retau_plt = 490
 # for c in glob(f"{fpath.Wenzel2019_path}/*.dill"):
 #     cname = c.split('/')[-1][:-5]
@@ -108,9 +108,9 @@ for c in Modesti2016.keys():
 # for c in Zhang2018.keys():
 #     ax.semilogx(Zhang2018[c].yplus[0], Zhang2018[c].uplus[0], 
 #                 color=col(getattr(Zhang2018[c],Cquant)), label=f"Z18:{c}")
-# for c in Volpiani2020.keys():
-#     ax.semilogx(Volpiani2020[c].yplus[Vxs], Volpiani2020[c].uplus[Vxs], '--',
-#                 color=col(getattr(Volpiani2020[c],Cquant)[Vxs]), label=f"V20:{c}")
+for c in Volpiani2020.keys():
+    ax.semilogx(Volpiani2020[c].yplus[Vxs], Volpiani2020[c].uplus[Vxs], '--',
+                color=col(getattr(Volpiani2020[c],Cquant)[Vxs]), label=f"V20:{c}")
 # for c in Wenzel2019.keys():
 #     # xi = np.where(Wenzel2019[c].Retau>=Retau_plt)[0][0]
 #     lstyle = '-' if Wenzel2019[c].Minf[0]>1.0 else '--'
@@ -143,9 +143,9 @@ for c in Modesti2016.keys():
 # for c in Zhang2018.keys():
 #     ax.semilogx(Zhang2018[c].yplusVD[0], Zhang2018[c].uplusVD[0], 
 #                 color=col(getattr(Zhang2018[c],Cquant)), label=f"Z18:{c}")
-# for c in Volpiani2020.keys():
-#     ax.semilogx(Volpiani2020[c].yplusVD[Vxs], Volpiani2020[c].uplusVD[Vxs], '--',
-#                 color=col(getattr(Volpiani2020[c],Cquant)[Vxs]), label=f"V20:{c}")
+for c in Volpiani2020.keys():
+    ax.semilogx(Volpiani2020[c].yplusVD[Vxs], Volpiani2020[c].uplusVD[Vxs], '--',
+                color=col(getattr(Volpiani2020[c],Cquant)[Vxs]), label=f"V20:{c}")
 # for c in Wenzel2019.keys():
 #     # xi = np.where(Wenzel2019[c].Retau>=Retau_plt)[0][0]
 #     lstyle = '-' if Wenzel2019[c].Minf[0]>1.0 else '--'
@@ -178,9 +178,9 @@ for c in Modesti2016.keys():
 # for c in Zhang2018.keys():
 #     ax.semilogx(Zhang2018[c].yplusTL[0], Zhang2018[c].uplusTL[0], 
 #                 color=col(getattr(Zhang2018[c],Cquant)), label=f"Z18:{c}")
-# for c in Volpiani2020.keys():
-#     ax.semilogx(Volpiani2020[c].yplusTL[Vxs], Volpiani2020[c].uplusTL[Vxs], '--',
-#                 color=col(getattr(Volpiani2020[c],Cquant)[Vxs]), label=f"V20:{c}")
+for c in Volpiani2020.keys():
+    ax.semilogx(Volpiani2020[c].yplusTL[Vxs], Volpiani2020[c].uplusTL[Vxs], '--',
+                color=col(getattr(Volpiani2020[c],Cquant)[Vxs]), label=f"V20:{c}")
 # for c in Wenzel2019.keys():
 #     # xi = np.where(Wenzel2019[c].Retau>=Retau_plt)[0][0]
 #     lstyle = '-' if Wenzel2019[c].Minf[0]>1.0 else '--'
@@ -212,9 +212,9 @@ for c in Modesti2016.keys():
 # for c in Zhang2018.keys():
 #     ax.semilogx(Zhang2018[c].yplusV[0], Zhang2018[c].uplusV[0], 
 #                 color=col(getattr(Zhang2018[c],Cquant)), label=f"Z18:{c}")
-# for c in Volpiani2020.keys():
-#     ax.semilogx(Volpiani2020[c].yplusV[Vxs], Volpiani2020[c].uplusV[Vxs], '--', 
-#                 color=col(getattr(Volpiani2020[c],Cquant)[Vxs]), label=f"V20:{c}")
+for c in Volpiani2020.keys():
+    ax.semilogx(Volpiani2020[c].yplusV[Vxs], Volpiani2020[c].uplusV[Vxs], '--', 
+                color=col(getattr(Volpiani2020[c],Cquant)[Vxs]), label=f"V20:{c}")
 # for c in Wenzel2019.keys():
 #     # xi = np.where(Wenzel2019[c].Retau>=Retau_plt)[0][0]
 #     lstyle = '-' if Wenzel2019[c].Minf[0]>1.0 else '--'
@@ -247,9 +247,9 @@ for c in Modesti2016.keys():
 # for c in Zhang2018.keys():
 #     ax.semilogx(Zhang2018[c].yplusGFM[0], Zhang2018[c].uplusGFM[0], 
 #                 color=col(getattr(Zhang2018[c],Cquant)), label=f"Z18:{c}")
-# for c in Volpiani2020.keys():
-#     ax.semilogx(Volpiani2020[c].yplusGFM[Vxs], Volpiani2020[c].uplusGFM[Vxs], '--', 
-#                 color=col(getattr(Volpiani2020[c],Cquant)[Vxs]),label=f"V20:{c}")
+for c in Volpiani2020.keys():
+    ax.semilogx(Volpiani2020[c].yplusGFM[Vxs], Volpiani2020[c].uplusGFM[Vxs], '--', 
+                color=col(getattr(Volpiani2020[c],Cquant)[Vxs]),label=f"V20:{c}")
 # for c in Wenzel2019.keys():
 #     # xi = np.where(Wenzel2019[c].Retau>=Retau_plt)[0][0]
 #     lstyle = '-' if Wenzel2019[c].Minf[0]>1.0 else '--'

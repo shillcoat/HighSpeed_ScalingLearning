@@ -70,5 +70,15 @@ for c in cases:
     dbCase.T_F = dat[:,14]
     dbCase.mu = dat[:,15]
 
+    dbCase.rhoprhop = dat[:,23]
+    dbCase.ruppupp = dbCase.rho * dat[:,16]
+    dbCase.rvppvpp = dbCase.rho * dat[:,17]
+    dbCase.rwppwpp = dbCase.rho * dat[:,18]
+    dbCase.ruppvpp = dbCase.rho * dat[:,19]
+
+    dbCase.PpPp = dat[:,24]
+    dbCase.rTppTpp = dbCase.rho * dat[:,25]
+    dbCase.rvppTpp = dbCase.rho * dat[:,26]
+
     save_case(dbCase, c[:-13] + ".dill")
     print(f"Saved case {cname} to database")
