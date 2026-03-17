@@ -86,7 +86,7 @@ def get_exp(ITPi_r:dict|str, D_in:np.matrix|np.ndarray, Vars:list[str]|tuple[str
         # flip eorig so dPe ~ 0 is always the first vector 
         # - SH: I think this is just so first Pi group doesn't have dPe?
         eorig_in = np.roll(eorig_in, eorig_in[:, Vars.index('dPe')].argmin(), axis=0)
-        eorig_out = np.roll(eorig_out, eorig_out[:, Vars.index('dPe')].argmin(), axis=0)
+        eorig_out = np.roll(eorig_out, eorig_out[:, Vars.index('dPe')].argmin(), axis=0) if e_out is not None else None
     for k, e_ in enumerate(eorig_in):
         inds = np.where(np.abs(eorig_in[k]) < exp_thresh)[0]
         e_in[k] = return_enew(np.array(D_in), e_, inds)
