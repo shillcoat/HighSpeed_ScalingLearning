@@ -51,7 +51,8 @@ class ITPi_data(ABC):
 
     def get_vars(self, vars:list):
         ii = [self._vars_all.index(x) for x in vars]
-        return self._X[:, ii], self._Y, self._id, self._D_in[:, ii]
+        Dmask = ~np.all(np.asarray(self._D_in[:, ii]) == 0, axis=1)
+        return self._X[:, ii], self._Y, self._id, self._D_in[:, ii][Dmask]
     
     def get_data(self, vars:list, Npts:int = 2000):
         X, Y, IDs, D_in = self.get_vars(vars)
