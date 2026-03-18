@@ -36,7 +36,7 @@ def check_edges(dat:db.BL, edges:list[str]=None, sigma_smooth:list[float]|str=No
 if __name__ == "__main__":
     # Select case to run on
     cases = glob(f"{fpath.Volpiani2020_path}/*.dill")
-    c = cases[1]
+    c = cases[0]
     print(c.split('/')[-1])
 
     # Compute a bunch of BL thicknesses
@@ -50,6 +50,7 @@ if __name__ == "__main__":
 
     dx = np.mean(np.diff(dat.x)) if nx > 1 else 1
     ssmooth = [8, 2] # Helpful smoothing kernel for Volpiani
+    # ssmooth = None
 
     d99, id99 = dat.find_edge('delta99', sigma_smooth=ssmooth)
     dinf, idinf = dat.find_edge('deltainf', sigma_smooth=ssmooth)

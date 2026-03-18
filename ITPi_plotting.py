@@ -6,11 +6,32 @@ import numpy as np
 import pdb
 
 __all__ = [
+    "swap_axes",
     "plt_exps",
     "plt_1Pi",
     "plt_2Pi",
 ]
 lstyles = ['-', '--', ':', '-.']
+
+def swap_axes(ax):
+    # Swap axes of plotted data (useful in conjunction with others if desire PiY to be on x-axis)
+    # Swap line data
+    for line in ax.get_lines():
+        x, y = line.get_xdata().copy(), line.get_ydata().copy()
+        line.set_xdata(y)
+        line.set_ydata(x)
+
+    # Swap scatter data (PathCollections)
+    for collection in ax.collections:
+        offsets = collection.get_offsets()  # Nx2 array of (x, y)
+        collection.set_offsets(offsets[:, [1, 0]])  # swap columns
+
+    # Swap axis labels
+    ax.set_xlabel(ax.get_ylabel()), ax.set_ylabel(ax.get_xlabel())
+
+    ax.relim()
+    ax.autoscale_view()
+
 
 def plt_exps(results, Ni, dat_obj, Vars, Varlbls=None, ax=None, exp_thresh=0.01, inorm=None):
     # Currently only supports a single output Pi group (if optimizing output)

@@ -6,7 +6,7 @@ from glob import glob
 import tomllib
 import os
 from argparse import ArgumentParser
-import multiprocessing
+import multiprocessing as mp
 
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
@@ -163,7 +163,7 @@ def extract_cases(caselst, dat_object=None, remove_wake=True, resample=True):
 
 if __name__ == "__main__":
     # Configure multiprocessing so I can keep editing things in the background without breaking running scripts
-    multiprocessing.set_start_method('forkserver')
+    mp.set_start_method('forkserver')
 
     parser = ArgumentParser(description="Run IT_Pi on U data")
     parser.add_argument("-c", "--config", type=str, default="inputfiles/ITPi_U.toml", help="Path to toml config file")
@@ -206,7 +206,8 @@ if __name__ == "__main__":
     # Run IT_Pi
     if not args.plot:
         for k in range(Nk):
-            print(f'Iteration = {k+1}')
+            print(f'\nITERATION = {k+1}')
+            print('-'*60)
             for num_input in NPi:
                 X, Y, _, basis_matrices = traindat.get_data(Vars, Npts=Ntrain)
 

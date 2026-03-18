@@ -22,7 +22,7 @@ from ITPi_plotting import *
 
 # PiY = tau_w/(rho_w*U_e^2)
 
-def extract_cases(datalst, dat_object=None, verbose=True):
+def extract_cases(datalst, dat_object=None, verbose=True, bl_edge='delta99'):
     if dat_object is None:
         dat_object = tau_data()
     
@@ -141,7 +141,7 @@ if __name__ == "__main__":
 
     ivars = [tau_data._vars_all.index(x) for x in Vars]
 
-    dat = extract_cases(datalst)
+    dat = extract_cases(datalst, bl_edge=bl_edge)
     print(f"Total number of data points after extraction: {len(dat._X)}")
 
     # Split data between training and validation sets (save these to go back to)
@@ -152,7 +152,7 @@ if __name__ == "__main__":
     if not args.plot:
         # Run IT_Pi
         for k in range(Nk):
-            print(f'\nIteration = {k+1}')
+            print(f'\ITERATION = {k+1}')
             print('-'*60)
             for num_input in NPi:
                 X, Y, _, basis_matrices = traindat.get_data(Vars, Npts=Ntrain)
@@ -224,7 +224,7 @@ if __name__ == "__main__":
         ei = e_in[0][kmin]
         eo = e_out[0][kmin] if oo else None
         plt_1Pi(X, Y, ei, eo, PiYlbl=r"$\Pi_\tau$", ax=ax, s=2, alpha=0.75, colQ=cols, colLbl='Dataset')
-        fig.savefig(f'{output_path}/tau_ITPI_{"_".join(Vars)}_Ni1_space.pdf')
+        fig.savefig(f'{output_path}/tau_ITPI_{"_".join(Vars)}_Ni1_space.png')
 
     if 2 in NPi:    
         # Ni = 2
@@ -233,6 +233,6 @@ if __name__ == "__main__":
         ei = e_in[1][kmin]
         eo = e_out[1][kmin] if oo else None
         plt_2Pi(X, Y, ei, eo, PiYlbl=r"$\Pi_\tau$", ax=ax)
-        fig.savefig(f'{output_path}/tau_ITPI_{"_".join(Vars)}_Ni2_space.pdf')
+        fig.savefig(f'{output_path}/tau_ITPI_{"_".join(Vars)}_Ni2_space.png')
 
 # %%

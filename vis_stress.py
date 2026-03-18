@@ -46,7 +46,8 @@ for c, Re in zip(cases, Re_values):
     axV.plot(cs.y, tauV, color=color, label=cname, linestyle=ls)
     axRe.plot(cs.y, tauRe, color=color, label=cname, linestyle=ls)
 
-    trettelTauTot.append({'c': cs, 'tau': np.vstack((cs.yplus[0], tauV+tauRe))})
+    trettelTauTot.append({'c': cs, 'tau': np.vstack((cs.yplus[0], tauV+tauRe)), 
+                          'mup': cs.mu[0]/cs.muw[0], 'rhop': cs.rho[0]/cs.rhow[0]})
     # Plot inset region
     mask = cs.yplus[0] < 100
     axV_inset.plot(cs.yplus[0][mask], tauV[mask], color=color, linestyle=ls)
@@ -100,7 +101,8 @@ for c, Re in zip(cases, Re_values):
     axV.plot(cs.y[:id99+1]/d99, tauV, color=color, label=cname, linestyle=ls)
     axRe.plot(cs.y[:id99+1]/d99, tauRe, color=color, label=cname, linestyle=ls)
 
-    volpianiTauTot.append({'c': cs, 'tau': np.vstack((cs.yplus[ix][:id99+1], tauV+tauRe))})
+    volpianiTauTot.append({'c': cs, 'tau': np.vstack((cs.yplus[ix][:id99+1], tauV+tauRe)), 
+                           'mup': cs.mu[ix,:id99+1]/cs.muw, 'rhop': cs.rho[ix,:id99+1]/cs.rhow[ix]})
     # Plot inset region
     mask = cs.yplus[ix] < 100
     axV_inset.plot(cs.yplus[ix][mask], tauV[mask[:id99+1]], color=color, linestyle=ls)
@@ -144,4 +146,44 @@ dummyTrettel = ax.plot([],[],c='k', label='Trettel2016')
 dummyVolpiani = ax.plot([],[],c='r', label='Volpiani2020')
 ax.set_xlim(0,100)
 ax.legend(loc='lower left')
+
+# %% Compare mu+ and rho+
+fig, ax = plt.subplots(figsize=(6,5))
+for c in trettelTauTot:
+    cs = c['c']
+    y = c['tau'][0,:]
+    mup = c['mup']
+    ax.plot(y, mup, linestyle=mach_linestyle(cs.Mbulk), c='k')
+for c in volpianiTauTot:
+    cs = c['c']
+    y = c['tau'][0,:]
+    mup = c['mup']
+    ls = '-' if np.abs(cs.Minf-2.28)<0.2 else '--'
+    ax.plot(y, mup, linestyle=ls, c='r')
+ax.set_ylabel(r'$\mu^+$')
+ax.set_xlabel(r'$y^+$')
+dummyTrettel = ax.plot([],[],c='k', label='Trettel2016')
+dummyVolpiani = ax.plot([],[],c='r', label='Volpiani2020')
+ax.set_xlim(0,100)
+ax.legend(loc='upper left')
+
+fig, ax = plt.subplots(figsize=(6,5))
+for c in trettelTauTot:
+    cs = c['c']
+    y = c['tau'][0,:]
+    rhop = c['rhop']
+    ax.plot(y, rhop, linestyle=mach_linestyle(cs.Mbulk), c='k')
+for c in volpianiTauTot:
+    cs = c['c']
+    y = c['tau'][0,:]
+    rhop = c['rhop']
+    ls = '-' if np.abs(cs.Minf-2.28)<0.2 else '--'
+    ax.plot(y, rhop, linestyle=ls, c='r')
+ax.set_ylabel(r'$\rho^+$')
+ax.set_xlabel(r'$y^+$')
+dummyTrettel = ax.plot([],[],c='k', label='Trettel2016')
+dummyVolpiani = ax.plot([],[],c='r', label='Volpiani2020')
+ax.set_xlim(0,100)
+ax.legend(loc='upper left')
+
 # %%

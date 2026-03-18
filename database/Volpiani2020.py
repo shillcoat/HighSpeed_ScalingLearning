@@ -28,11 +28,11 @@ c_params = {
     "m5_twtr190_bl_m-025":  [5.0e-5,    -0.25,  10.355, 10.355/1.9, 25, 45.0,   55, 5.0/200.0],
     "m5_twtr080_bl_hRe":    [1.8e-5,    0.75,   4.36,   4.36/0.8,   25, 40.0,   65, 5.0/200.0],
     "m5_twtr080_bl_mhRe":   [1.2e-5,    0.75,   4.36,   4.36/0.8,   25, 40.0,   65, 5.0/300.0],
-    "m5_twtr080_bl_vhRe":   [0.9e-5,    0.75,   4.36,   4.36/0.8,   25, 40.0,   65, 5.0/340.0],
+    "m5_twtr080_bl_vhRe":   [0.9e-5,    0.75,   4.36,   4.36/0.8,   30, 40.0,   65, 5.0/340.0],
     "m228_twtr050_bl":      [1.29e-4,   0.75,   0.963,  0.963/0.5,  15, 35.0,   60, 5.0/256.0],
     "m228_twtr100_bl":      [1.22e-4,   0.75,   1.920,  1.920,      15, 35.0,   60, 5.0/128.0],
     "m228_twtr100_bl_hRe":  [0.6e-4,    0.75,   1.920,  1.920,      15, 35.0,   60, 5.0/256.0],
-    "m228_twtr190_bl":      [1.20e-4,   0.75,   3.658,  3.658/1.9,  15, 35.0,   60, 5.0/180.0]
+    "m228_twtr190_bl":      [1.20e-4,   0.75,   3.658,  3.658/1.9,  15, 35.0,   55, 5.0/180.0]
 }
 
 for c in cases:
@@ -55,10 +55,11 @@ for c in cases:
     ixe = np.argmin(np.abs(dbCase.x-xsp))
     dbCase.x = dbCase.x[ixb:ixe]
     avg = avg[ixb:ixe,:,:]
+    nx = ixe - ixb
 
     dbCase.mu_law = lambda T: dbCase.muinf * T**muexp
     dbCase.uinf = 1.0
-    # dbCase.rhoinf = 1.0
+    # dbCase.rhoinf = 1.0  # Used by Volpiani but isn't actually true?
     dbCase.Tinf = 1.0
     
     # Reynolds mean and fluctuating quantities
@@ -116,15 +117,34 @@ for c in cases:
     dbCase.deltastar = mu_muw*np.sqrt(1/rho_rhow)*np.transpose([dbCase.deltaplus])
     dbCase.ystar = dbCase.y/dbCase.deltastar
 
+    # # TNTI detection to then use as reference for edge location (in case free-stream has not been reached in domain)
+    # # Volpiani's original script uses this but for consistency with other datasets I am omitting it
+    # f = dbCase.rwppwpp / np.abs(dbCase.tauw[:,np.newaxis])
+    # J = np.argmax(f, axis=1)
+    # unorm = np.zeros_like(dbCase.x)
+    # rnorm = np.zeros_like(dbCase.x)
+    # for I in range(nx):
+    #     while J[I] < ny and f[I,J[I]] > 0.02:
+    #         J[I] += 1
+    #     # Both end up being within ~3/100 of 1.0 across cases
+    #     unorm[I] = dbCase.u_F[I,J[I]]
+    #     rnorm[I] = dbCase.rho[I,J[I]]
+    # dbCase.u_F /= np.transpose([unorm])
+    # dbCase.rho /= np.transpose([rnorm])
+
     # Get visual thickness
-    dbCase.delta99, id99 = dbCase.find_edge(sigma_smooth=ssmooth)
+    dbCase.delta99, id99 = dbCase.find_edge(sigma_smooth=ssmooth, use_favre=False)
     # Get free-stream location to extract rhoinf
-    dinf, idinf = dbCase.find_edge('deltainf', sigma_smooth=ssmooth)
+    dinf, idinf = dbCase.find_edge('deltainf', sigma_smooth=ssmooth, use_favre=False)
     idinf = np.transpose(np.array(list(zip(range(nx),idinf))))
     dbCase.rhoinf = dbCase.rho[*idinf]
 
-    dbCase.delta1, _ = dbCase.find_edge('delta1', sigma_smooth=ssmooth)
-    dbCase.delta2, _ = dbCase.find_edge('delta2', sigma_smooth=ssmooth)
+    dbCase.delta1, _ = dbCase.find_edge('delta1', sigma_smooth=ssmooth, use_favre=False)
+    dbCase.delta2, _ = dbCase.find_edge('delta2', sigma_smooth=ssmooth, use_favre=False)
+
+    # # Fix the TNTI normalization once I've used it to find the edge locations
+    # dbCase.u_F *= np.transpose([unorm])
+    # dbCase.rho *= np.transpose([rnorm])
 
     dbCase.Cf = 2*dbCase.tauw/(dbCase.rhoinf * dbCase.uinf**2)
     dbCase.Bq = dbCase.qw/(dbCase.rhow*cp*dbCase.utau*dbCase.Tw)
@@ -142,6 +162,7 @@ for c in cases:
     
     print(f"Case: {cname}")
     print(f"ix         = {ix}")
+    print(f"x          = {dbCase.x[ix]:.4f}")
     print(f"nx         = {nx}")
     print(f"ny         = {ny}")
     print(f"deltaplus  = {dbCase.deltaplus[ix]:.4f}")

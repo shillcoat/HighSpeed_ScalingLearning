@@ -221,7 +221,7 @@ class Case:
             r.append(getattr(self, param, None) is not None)
         return r
 
-    def vel_transform(self,f=None,g=None,fw=1,gw=1,label:str=""):
+    def vel_transform(self,f=None,g=None,fw=1,gw=1,label:str="",use_favre=False):
         # Perform velocity transformation with given transformation kernels f and g
         # fw and gw are wall values of kernel that will be prepended if y=0 is not included in dataset
         # If a label is provided, the transformed velocity and coordinate will be saved to u{label} and y{label} attributes
@@ -230,7 +230,7 @@ class Case:
         if label:
             self._unfreeze()
             rhop = self.rho/np.transpose([self.rhow])
-            mup = self.mu/np.transpose([self.muw])
+            mup = self.mu/np.transpose([self.muw]) # I could add mu_F here if use_favre but no one seems to use it?
 
             # Check if label corresponds to one of known transformations
             if label.upper() == "VD":
@@ -285,11 +285,12 @@ class Case:
             f = np.insert(f,0,fw,axis=1 if ndim>1 else 0)
             g = np.insert(g,0,gw,axis=1 if ndim>1 else 0)    
 
+        U = self.u_F if use_favre else self.u
         # Perform the numerical integration using given kernels
         yscaled, uscaled = np.zeros(self.u.shape), np.zeros(self.u.shape)
         sj = np.s_[:,0] if ndim>1 else np.s_[0]
         sjp1 = np.s_[:,1] if ndim>1 else np.s_[1]
-        uscaled[sj] = (g[sj]+g[sjp1])/2.0 * self.u[sj]
+        uscaled[sj] = (g[sj]+g[sjp1])/2.0 * U[sj]
         yscaled[sj] = (f[sj]+f[sjp1])/2.0 * self.y[...,0]
 
         if prep:
@@ -298,7 +299,7 @@ class Case:
             f = f[1:] if ndim==1 else f[:,1:]
 
         for j in range(1, self.y.shape[-1]):
-            uscaled[sjp1] = uscaled[sj] + (g[sj]+g[sjp1])/2.0*(self.u[sjp1]-self.u[sj])
+            uscaled[sjp1] = uscaled[sj] + (g[sj]+g[sjp1])/2.0*(U[sjp1]-U[sj])
             yscaled[sjp1] = yscaled[sj] + (f[sj]+f[sjp1])/2.0*(self.y[...,j]-self.y[...,j-1])
             sj = sjp1
             sjp1 = np.s_[:,j+1] if ndim>1 else np.s_[j+1]
@@ -382,7 +383,7 @@ class BL(Case):
         if len(r) == 1: return r[0] 
         else: return r
 
-    def find_edge(self, edge_type='delta99', interp=True, sigma_smooth=None):
+    def find_edge(self, edge_type='delta99', interp=True, sigma_smooth=None, use_favre=False):
         # TODO: Currently sometimes slightly underestimates values of delta1, delta2 
         # compared to those reported... unsure why or if it matters?
         if self.u.ndim > 1:
@@ -390,7 +391,11 @@ class BL(Case):
         else:
             nx, ny = 1, self.u.shape[0]
 
-        U, V, P, RHO = self.u, self.v, self.P, self.rho
+        RHO = self.rho
+        if use_favre:
+            U, V, P = self.u_F, self.v_F, self.P_F
+        else:
+            U, V, P = self.u, self.v, self.P
         if sigma_smooth is not None:
             U = gaussian_filter(U, sigma=sigma_smooth)
             V = gaussian_filter(V, sigma=sigma_smooth)
@@ -399,11 +404,10 @@ class BL(Case):
 
         if edge_type != 'delta99':
             if not self.hasdata('delta99'):
-                self.delta99, _ = self.find_edge('delta99', interp=interp, sigma_smooth=sigma_smooth)
+                self.delta99, _ = self.find_edge('delta99', interp=interp, sigma_smooth=sigma_smooth, use_favre=use_favre)
             id99 = np.argmin(np.abs(self.y[np.newaxis,:] - self.delta99[:,np.newaxis]),axis=-1)
             if id99.ndim > 1: id99 = id99.squeeze()
 
-        
         match edge_type:
             case 'delta99':
                 # This is best way I could come up with to do this efficiently for 2D arrays
